@@ -14,6 +14,7 @@ import {
   Building2, User, Bell, Shield, Globe, CreditCard,
   FileText, Clock, Mail, Smartphone, MessageSquare,
   CheckCircle, Zap, Star, Rocket, AlertTriangle,
+  Calendar, X, ArrowRight,
 } from "lucide-react";
 import { toast } from "sonner";
 import { apiFetch } from "@/lib/api";
@@ -61,6 +62,7 @@ interface SubscriptionData {
   status:             string;
   trialDaysRemaining: number;
   trialEndDate:       string;
+  currentPeriodStart: string;
   currentPeriodEnd:   string;
   usage:              { messages: number; aiQueries: number; invoices: number; teamMembers: number };
   limits:             PlanLimit;
@@ -83,12 +85,25 @@ const planIcons: Record<string, typeof Zap> = {
   enterprise:   CheckCircle,
 };
 
-// ── Format limit value ─────────────────────────────────────────────────────
+// ── Helpers ────────────────────────────────────────────────────────────────
 function fmtLimit(v: number) {
   return v === -1 ? "Unlimited" : v.toLocaleString();
 }
 
-// ── Loading skeleton ───────────────────────────────────────────────────────
+function fmtDate(dateStr: string) {
+  if (!dateStr) return '';
+  const d = new Date(dateStr);
+  return d.toLocaleDateString('en-IN', { year: 'numeric', month: 'short', day: 'numeric' });
+}
+
+function daysUntil(dateStr: string) {
+  if (!dateStr) return 0;
+  const end = new Date(dateStr);
+  const now = new Date();
+  const diff = end.getTime() - now.getTime();
+  return Math.max(0, Math.ceil(diff / (1000 * 60 * 60 * 24)));
+}
+
 function FieldSkeleton() {
   return (
     <div className="space-y-1.5">
@@ -98,13 +113,128 @@ function FieldSkeleton() {
   );
 }
 
+// ── Payment Modal ──────────────────────────────────────────────────────────
+interface PaymentModalProps {
+  open: boolean;
+  onClose: () => void;
+  plan: FullPlan | null;
+  onConfirm: () => Promise<void>;
+  loading: boolean;
+}
+
+const PaymentModal = ({ open, onClose, plan, onConfirm, loading }: PaymentModalProps) => {
+  const [cardNumber, setCardNumber] = useState("");
+  const [expiry, setExpiry] = useState("");
+  const [cvv, setCvv] = useState("");
+
+  if (!open || !plan) return null;
+
+  return (
+    <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+      <Card className="w-full max-w-md border-0 shadow-elevated bg-card">
+        {/* Header */}
+        <div className="flex items-center justify-between p-6 border-b border-border">
+          <h2 className="text-lg font-semibold text-foreground">Complete Payment</h2>
+          <button
+            onClick={onClose}
+            className="text-muted-foreground hover:text-foreground"
+          >
+            <X className="h-5 w-5" />
+          </button>
+        </div>
+
+        {/* Plan Summary */}
+        <div className="p-6 border-b border-border space-y-3">
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Plan</span>
+            <span className="font-semibold text-foreground">{plan.name}</span>
+          </div>
+          <div className="flex items-center justify-between">
+            <span className="text-sm text-muted-foreground">Price</span>
+            <span className="font-semibold text-foreground">Rs. {plan.price.toLocaleString()}/month</span>
+          </div>
+          <Separator />
+          <div className="flex items-center justify-between">
+            <span className="text-sm font-semibold text-foreground">Total</span>
+            <span className="text-xl font-bold text-primary">Rs. {plan.price.toLocaleString()}</span>
+          </div>
+        </div>
+
+        {/* Form */}
+        <div className="p-6 space-y-4">
+          <div>
+            <Label className="text-sm">Card Number</Label>
+            <Input
+              value={cardNumber}
+              onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
+              placeholder="4242 4242 4242 4242"
+              className="mt-1.5 font-mono"
+            />
+          </div>
+
+          <div className="grid grid-cols-2 gap-3">
+            <div>
+              <Label className="text-sm">Expiry (MM/YY)</Label>
+              <Input
+                value={expiry}
+                onChange={(e) => {
+                  let v = e.target.value.replace(/\D/g, '').slice(0, 4);
+                  if (v.length >= 2) v = v.slice(0, 2) + '/' + v.slice(2);
+                  setExpiry(v);
+                }}
+                placeholder="12/25"
+                className="mt-1.5 font-mono"
+              />
+            </div>
+            <div>
+              <Label className="text-sm">CVV</Label>
+              <Input
+                value={cvv}
+                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
+                placeholder="123"
+                type="password"
+                className="mt-1.5 font-mono"
+              />
+            </div>
+          </div>
+
+          <p className="text-xs text-muted-foreground bg-accent/50 p-3 rounded-lg">
+            💡 <strong>Demo Mode:</strong> Use any card details above. In production, this would redirect to Razorpay.
+          </p>
+        </div>
+
+        {/* Actions */}
+        <div className="flex gap-2 p-6 border-t border-border">
+          <Button
+            variant="outline"
+            className="flex-1"
+            onClick={onClose}
+            disabled={loading}
+          >
+            Cancel
+          </Button>
+          <Button
+            variant="hero"
+            className="flex-1"
+            disabled={loading || !cardNumber || !expiry || !cvv}
+            onClick={onConfirm}
+          >
+            {loading ? "Processing..." : "Pay & Activate"}
+          </Button>
+        </div>
+      </Card>
+    </div>
+  );
+};
+
 // ══════════════════════════════════════════════════════════════════════════
 const Settings = () => {
   const [loading, setLoading]     = useState(true);
   const [saving,  setSaving]      = useState<string | null>(null);
   const [subLoading, setSubLoading] = useState(true);
+  const [cancelling, setCancelling] = useState(false);
 
-  // ── Form states ──────────────────────────────────────────────────────────
+  // Form states
   const [companyName,   setCompanyName]   = useState("");
   const [address,       setAddress]       = useState("");
   const [gstin,         setGstin]         = useState("");
@@ -138,12 +268,18 @@ const Settings = () => {
   const [currentPass,  setCurrentPass]  = useState("");
   const [newPass,      setNewPass]      = useState("");
 
-  // ── Subscription state ───────────────────────────────────────────────────
+  // Subscription state
   const [subscription,  setSubscription]  = useState<SubscriptionData | null>(null);
   const [allPlans,      setAllPlans]      = useState<FullPlan[]>([]);
-  const [selectingPlan, setSelectingPlan] = useState(false);
 
-  // ── Fetch settings on mount ──────────────────────────────────────────────
+  // Payment modal state
+  const [paymentModal, setPaymentModal] = useState({
+    open: false,
+    selectedPlan: null as FullPlan | null,
+    processing: false,
+  });
+
+  // Fetch settings
   const fetchSettings = useCallback(async () => {
     setLoading(true);
     const { data, error } = await apiFetch<{ user: UserSettings }>('/settings');
@@ -172,7 +308,7 @@ const Settings = () => {
     setLoading(false);
   }, []);
 
-  // ── Fetch billing on mount ───────────────────────────────────────────────
+  // Fetch billing
   const fetchBilling = useCallback(async () => {
     setSubLoading(true);
     const { data, error } = await apiFetch<{ subscription: SubscriptionData; allPlans: FullPlan[] }>('/billing');
@@ -184,7 +320,7 @@ const Settings = () => {
 
   useEffect(() => { fetchSettings(); fetchBilling(); }, [fetchSettings, fetchBilling]);
 
-  // ── Generic save handler ─────────────────────────────────────────────────
+  // Save handler
   async function save(section: string, body: object) {
     setSaving(section);
     const { error, data } = await apiFetch<{ message: string; user?: UserSettings }>(
@@ -195,14 +331,12 @@ const Settings = () => {
     if (error) { toast.error(error); return; }
     toast.success((data as { message: string }).message);
 
-    // If account section updated, refresh localStorage too
     if (section === 'account' && (data as { user?: UserSettings }).user) {
       const stored = JSON.parse(localStorage.getItem('user') ?? '{}');
       const updated = { ...stored, ...(data as { user: UserSettings }).user };
       localStorage.setItem('user', JSON.stringify(updated));
     }
 
-    // If business section, update localStorage companyName
     if (section === 'business' && (data as { user?: UserSettings }).user) {
       const stored = JSON.parse(localStorage.getItem('user') ?? '{}');
       localStorage.setItem('user', JSON.stringify({
@@ -212,20 +346,37 @@ const Settings = () => {
     }
   }
 
-  // ── Plan selection ───────────────────────────────────────────────────────
-  async function handleSelectPlan(planId: string) {
-    setSelectingPlan(true);
-    const { error } = await apiFetch('/billing/select-plan', {
+  // Activate plan handler
+  async function handleActivatePlan() {
+    if (!paymentModal.selectedPlan) return;
+
+    setPaymentModal(prev => ({ ...prev, processing: true }));
+    const { error } = await apiFetch('/billing/activate-plan', {
       method: 'POST',
-      body: JSON.stringify({ planId }),
+      body: JSON.stringify({ planId: paymentModal.selectedPlan!.id }),
     });
-    setSelectingPlan(false);
+    setPaymentModal(prev => ({ ...prev, processing: false }));
+
     if (error) { toast.error(error); return; }
-    toast.success("Plan upgraded! Welcome aboard.");
+    toast.success(`Subscription activated! Welcome to ${paymentModal.selectedPlan.name}`);
+    setPaymentModal({ open: false, selectedPlan: null, processing: false });
     fetchBilling();
   }
 
-  // ── Status badge color ───────────────────────────────────────────────────
+  // Cancel subscription handler
+  async function handleCancelSubscription() {
+    if (!confirm('Are you sure? This will immediately cancel your subscription.')) return;
+
+    setCancelling(true);
+    const { error } = await apiFetch('/billing/cancel', { method: 'POST' });
+    setCancelling(false);
+
+    if (error) { toast.error(error); return; }
+    toast.success("Subscription cancelled. Your access will end on the billing date.");
+    fetchBilling();
+  }
+
+  // Status variant
   function statusVariant(status: string): "default" | "secondary" | "destructive" {
     if (status === 'active') return 'default';
     if (status === 'trial')  return 'secondary';
@@ -254,7 +405,7 @@ const Settings = () => {
                 </h3>
                 {loading ? (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                    {Array(4).fill(0).map((_, i) => <FieldSkeleton key={i} />)}
+                    {Array(6).fill(0).map((_, i) => <FieldSkeleton key={i} />)}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
@@ -533,13 +684,13 @@ const Settings = () => {
                   </div>
                 ) : subscription ? (
                   <>
-                    <div className="flex items-center justify-between p-4 rounded-xl bg-accent/50 border border-accent">
+                    <div className="flex items-center justify-between p-4 rounded-xl bg-accent/50 border border-accent mb-4">
                       <div>
                         <p className="font-semibold text-foreground">{subscription.planName}</p>
                         <p className="text-sm text-muted-foreground">
                           {subscription.price === 0
                             ? `Free Trial — ${subscription.trialDaysRemaining} days remaining`
-                            : `Rs.${subscription.price.toLocaleString()}/month`}
+                            : `Rs. ${subscription.price.toLocaleString()}/month`}
                         </p>
                       </div>
                       <Badge variant={statusVariant(subscription.status)} className="capitalize">
@@ -547,8 +698,34 @@ const Settings = () => {
                       </Badge>
                     </div>
 
+                    {/* Billing Cycle (Netflix style) */}
+                    {subscription.status === 'active' && subscription.currentPeriodEnd && (
+                      <div className="p-4 rounded-lg bg-primary/5 border border-primary/20 mb-4">
+                        <div className="flex items-center gap-2 text-sm text-foreground">
+                          <Calendar className="h-4 w-4 text-primary" />
+                          <span className="font-medium">
+                            Billing Cycle: {fmtDate(subscription.currentPeriodStart)} – {fmtDate(subscription.currentPeriodEnd)}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          Next billing date: <strong>{fmtDate(subscription.currentPeriodEnd)}</strong>
+                        </p>
+                        <div className="mt-3 w-full bg-primary/20 h-1.5 rounded-full overflow-hidden">
+                          <div
+                            className="bg-primary h-full transition-all"
+                            style={{
+                              width: `${Math.max(0, 100 - (daysUntil(subscription.currentPeriodEnd) / 30) * 100)}%`,
+                            }}
+                          />
+                        </div>
+                        <p className="text-xs text-muted-foreground mt-1">
+                          {daysUntil(subscription.currentPeriodEnd)} days remaining
+                        </p>
+                      </div>
+                    )}
+
                     {/* Usage meters */}
-                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 mt-4">
+                    <div className="grid grid-cols-2 sm:grid-cols-4 gap-3">
                       {([
                         { label: "Messages",    used: subscription.usage.messages,    limit: subscription.limits.messages },
                         { label: "AI Queries",  used: subscription.usage.aiQueries,   limit: subscription.limits.aiQueries },
@@ -563,6 +740,18 @@ const Settings = () => {
                         </div>
                       ))}
                     </div>
+
+                    {/* Cancel button */}
+                    {subscription.status === 'active' && (
+                      <Button
+                        variant="destructive"
+                        className="w-full mt-4"
+                        disabled={cancelling}
+                        onClick={handleCancelSubscription}
+                      >
+                        {cancelling ? 'Cancelling...' : 'Cancel Subscription'}
+                      </Button>
+                    )}
                   </>
                 ) : (
                   <p className="text-sm text-muted-foreground">No subscription found.</p>
@@ -572,23 +761,23 @@ const Settings = () => {
               {/* Plan selection cards */}
               <Card className="p-6 border-0 shadow-premium bg-card">
                 <h3 className="text-base font-semibold text-foreground mb-5">
-                  {subscription?.status === 'active' ? 'Change Plan' : 'Choose a Plan'}
+                  {subscription?.status === 'active' ? 'Change or Upgrade Plan' : 'Choose a Plan'}
                 </h3>
                 {subLoading ? (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                    {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-48 rounded-xl" />)}
+                    {Array(3).fill(0).map((_, i) => <Skeleton key={i} className="h-56 rounded-xl" />)}
                   </div>
                 ) : (
                   <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                     {allPlans.map((plan) => {
-                      const Icon      = planIcons[plan.id] ?? Zap;
+                      const Icon = planIcons[plan.id] ?? Zap;
                       const isCurrent = subscription?.plan === plan.id;
                       const isPopular = plan.id === 'professional';
 
                       return (
                         <div
                           key={plan.id}
-                          className={`relative rounded-xl border-2 p-5 flex flex-col gap-3 transition-all ${
+                          className={`relative rounded-xl border-2 p-5 flex flex-col gap-4 transition-all cursor-pointer hover:shadow-lg ${
                             isCurrent
                               ? 'border-primary bg-primary/5'
                               : 'border-border hover:border-primary/50 bg-muted/30'
@@ -596,35 +785,56 @@ const Settings = () => {
                         >
                           {isPopular && (
                             <span className="absolute -top-3 left-1/2 -translate-x-1/2 px-3 py-0.5 rounded-full text-[10px] font-bold bg-primary text-primary-foreground">
-                              POPULAR
+                              MOST POPULAR
                             </span>
                           )}
+
                           <div className="flex items-center gap-2">
                             <div className="h-8 w-8 rounded-lg bg-primary/10 flex items-center justify-center">
                               <Icon className="h-4 w-4 text-primary" />
                             </div>
                             <span className="font-semibold text-foreground">{plan.name}</span>
                           </div>
-                          <p className="text-2xl font-bold text-foreground">
-                            Rs.{plan.price.toLocaleString()}
-                            <span className="text-xs font-normal text-muted-foreground">/mo</span>
-                          </p>
-                          <ul className="space-y-1.5 text-xs text-muted-foreground flex-1">
-                            <li className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3 text-success shrink-0" /> {fmtLimit(plan.limits.messages)} messages</li>
-                            <li className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3 text-success shrink-0" /> {fmtLimit(plan.limits.aiQueries)} AI queries</li>
-                            <li className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3 text-success shrink-0" /> {fmtLimit(plan.limits.invoices)} invoices</li>
-                            <li className="flex items-center gap-1.5"><CheckCircle className="h-3 w-3 text-success shrink-0" /> {fmtLimit(plan.limits.teamMembers)} team members</li>
+
+                          <div>
+                            <p className="text-3xl font-bold text-foreground">
+                              Rs. {plan.price}
+                              <span className="text-sm font-normal text-muted-foreground">/month</span>
+                            </p>
+                          </div>
+
+                          <ul className="space-y-2 text-xs text-muted-foreground flex-1">
+                            <li className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3 text-success shrink-0" />
+                              {fmtLimit(plan.limits.messages)} messages
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3 text-success shrink-0" />
+                              {fmtLimit(plan.limits.aiQueries)} AI queries
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3 text-success shrink-0" />
+                              {fmtLimit(plan.limits.invoices)} invoices
+                            </li>
+                            <li className="flex items-center gap-2">
+                              <CheckCircle className="h-3 w-3 text-success shrink-0" />
+                              {fmtLimit(plan.limits.teamMembers)} team members
+                            </li>
                           </ul>
+
                           {isCurrent ? (
-                            <Badge variant="default" className="w-fit">Current Plan</Badge>
+                            <Badge variant="default" className="w-full justify-center">
+                              ✓ Current Plan
+                            </Badge>
                           ) : (
                             <Button
                               variant={isPopular ? 'hero' : 'outline'}
                               size="sm"
-                              disabled={selectingPlan}
-                              onClick={() => handleSelectPlan(plan.id)}
+                              className="w-full"
+                              onClick={() => setPaymentModal({ open: true, selectedPlan: plan, processing: false })}
                             >
-                              {selectingPlan ? 'Processing...' : 'Select Plan'}
+                              <ArrowRight className="h-3.5 w-3.5 mr-1" />
+                              Get Started
                             </Button>
                           )}
                         </div>
@@ -632,9 +842,6 @@ const Settings = () => {
                     })}
                   </div>
                 )}
-                <p className="text-xs text-muted-foreground mt-4">
-                  * In production, clicking "Select Plan" opens a Razorpay payment flow. Plans activate instantly after payment confirmation.
-                </p>
               </Card>
 
               {/* Payment method */}
@@ -646,7 +853,6 @@ const Settings = () => {
                     <div>
                       <p className="text-sm font-medium text-foreground">{subscription.paymentMethod}</p>
                     </div>
-                    <Button variant="outline" size="sm" className="ml-auto">Change</Button>
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
@@ -727,6 +933,15 @@ const Settings = () => {
 
         </Tabs>
       </div>
+
+      {/* Payment Modal */}
+      <PaymentModal
+        open={paymentModal.open}
+        onClose={() => setPaymentModal({ open: false, selectedPlan: null, processing: false })}
+        plan={paymentModal.selectedPlan}
+        onConfirm={handleActivatePlan}
+        loading={paymentModal.processing}
+      />
     </AppLayout>
   );
 };

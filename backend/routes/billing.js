@@ -3,13 +3,13 @@ const router = express.Router();
 const { Subscription, PLANS } = require('../models/Subscription');
 const { authMiddleware } = require('../middleware/auth');
 
-// GET /api/billing — get subscription info for logged-in user
+// ── GET /api/billing ──────────────────────────────────────────────────────
 router.get('/', authMiddleware, async (req, res) => {
   try {
     const sub = await Subscription.findOne({ userId: req.userId });
     if (!sub) return res.status(404).json({ error: 'No subscription found' });
 
-    // Check if trial has expired — auto-update status
+    // Check if trial has expired
     if (sub.status === 'trial' && new Date() > sub.trialEndDate) {
       sub.status = 'expired';
       await sub.save();
@@ -23,6 +23,7 @@ router.get('/', authMiddleware, async (req, res) => {
         status:             sub.status,
         trialDaysRemaining: sub.trialDaysRemaining,
         trialEndDate:       sub.trialEndDate,
+        currentPeriodStart: sub.currentPeriodStart,
         currentPeriodEnd:   sub.currentPeriodEnd,
         usage:              sub.usage,
         limits:             PLANS[sub.plan].limits,
@@ -34,11 +35,12 @@ router.get('/', authMiddleware, async (req, res) => {
       })),
     });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// GET /api/billing/status — lightweight check (used by middleware)
+// ── GET /api/billing/status ───────────────────────────────────────────────
 router.get('/status', authMiddleware, async (req, res) => {
   try {
     const sub = await Subscription.findOne({ userId: req.userId });
@@ -65,10 +67,9 @@ router.get('/status', authMiddleware, async (req, res) => {
   }
 });
 
-// POST /api/billing/select-plan — called when user picks a plan
-// In real life this would create a Razorpay order/subscription
-// For now it simulates upgrading
-router.post('/select-plan', authMiddleware, async (req, res) => {
+// ── POST /api/billing/activate-plan ───────────────────────────────────────
+// Called after "payment" (for college prototype)
+router.post('/activate-plan', authMiddleware, async (req, res) => {
   try {
     const { planId } = req.body;
     if (!PLANS[planId]) return res.status(400).json({ error: 'Invalid plan' });
@@ -85,27 +86,53 @@ router.post('/select-plan', authMiddleware, async (req, res) => {
     sub.status = 'active';
     sub.currentPeriodStart = now;
     sub.currentPeriodEnd   = periodEnd;
-
-    // In real life: create Razorpay subscription here and save razorpaySubscriptionId
-    // const razorpayOrder = await razorpay.subscriptions.create({ ... });
-    // sub.razorpaySubscriptionId = razorpayOrder.id;
+    sub.paymentMethod = "Razorpay (Test Mode)";
+    sub.usage = {
+      messages:    0,
+      aiQueries:   0,
+      invoices:    0,
+      teamMembers: 1,
+    };
 
     await sub.save();
-    res.json({ message: `Upgraded to ${PLANS[planId].name}`, subscription: sub });
+
+    res.json({
+      message: `Upgraded to ${PLANS[planId].name}`,
+      subscription: {
+        plan:               sub.plan,
+        planName:           PLANS[sub.plan].name,
+        price:              PLANS[sub.plan].price,
+        status:             sub.status,
+        currentPeriodStart: sub.currentPeriodStart,
+        currentPeriodEnd:   sub.currentPeriodEnd,
+        paymentMethod:      sub.paymentMethod,
+      },
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
 
-// POST /api/billing/cancel — cancel subscription
+// ── POST /api/billing/cancel ──────────────────────────────────────────────
 router.post('/cancel', authMiddleware, async (req, res) => {
   try {
     const sub = await Subscription.findOne({ userId: req.userId });
     if (!sub) return res.status(404).json({ error: 'No subscription found' });
+
     sub.status = 'cancelled';
+    sub.currentPeriodEnd = new Date(); // Cancel immediately
     await sub.save();
-    res.json({ message: 'Subscription cancelled' });
+
+    res.json({
+      message: 'Subscription cancelled',
+      subscription: {
+        plan:   sub.plan,
+        status: sub.status,
+      },
+    });
   } catch (err) {
+    console.error(err);
     res.status(500).json({ error: 'Server error' });
   }
 });
