@@ -24,7 +24,22 @@ const invoicesDir = path.join(__dirname, 'public', 'invoices');
 });
 
 // ── Global Middleware ─────────────────────────────────────────────────────────
-app.use(cors({ origin: ['http://localhost:5173', 'http://localhost:8080'], credentials: true }));
+const allowedOrigins = [
+  'http://localhost:5173',
+  'http://localhost:8080',
+  process.env.FRONTEND_URL, // e.g., 'https://msme-360.vercel.app'
+].filter(Boolean);
+
+app.use(cors({ 
+  origin: (origin, callback) => {
+    if (!origin || allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
+      callback(null, true);
+    } else {
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
+  credentials: true 
+}));
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
 

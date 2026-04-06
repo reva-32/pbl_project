@@ -69,7 +69,7 @@ exports.createInvoicePDF = (data) => {
             doc.end();
 
             stream.on('finish', () => {
-                resolve({ success: true, downloadUrl: `http://localhost:5000/invoices/${fileName}` });
+                resolve({ success: true, downloadUrl: `/invoices/${fileName}` });
             });
             stream.on('error', (err) => reject(err));
 

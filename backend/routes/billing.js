@@ -1,6 +1,6 @@
 const express = require('express');
 const router = express.Router();
-const { Subscription, PLANS } = require('../models/Subscription');
+const { Subscription, PLANS } = require('../models/subscription');
 const { authMiddleware } = require('../middleware/auth');
 
 // ── GET /api/billing ──────────────────────────────────────────────────────
