@@ -1,7 +1,7 @@
 const bcrypt    = require('bcryptjs');
 const jwt       = require('jsonwebtoken');
-const User      = require('../models/User');
-const { Subscription } = require('../models/Subscription');
+const User      = require('../models/user');
+const { Subscription } = require('../models/subscription');
 const { createCompanySheet } = require('../services/sheets.service');
 
 // ── POST /api/signup ──────────────────────────────────────────────────────────

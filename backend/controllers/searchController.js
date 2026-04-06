@@ -1,4 +1,4 @@
-const DecisionEvent = require('../models/DecisionEvent');
+const DecisionEvent = require('../models/decisionEvent');
 const Groq          = require('groq-sdk');
 const { getEmbedding } = require('../services/ragService');
 const { createInvoicePDF } = require('../utils/invoiceGenerator');
