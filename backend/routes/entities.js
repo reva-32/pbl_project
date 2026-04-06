@@ -29,7 +29,7 @@ router.get('/inventory', authMiddleware, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-const DecisionEvent = require('../models/DecisionEvent');
+const DecisionEvent = require('../models/decisionEvent');
 
 router.get('/events', authMiddleware, async (req, res) => {
     try {
