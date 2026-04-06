@@ -14,7 +14,10 @@ import {
 } from "@/components/ui/dropdown-menu";
 
 interface AppLayoutProps {
-  children: ReactNode;}
+  children: ReactNode;
+  title?: string;
+}
+
 
 // ── Helper: read user from localStorage ───────────────────────────────────
 function getStoredUser() {

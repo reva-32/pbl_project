@@ -6,8 +6,9 @@ const poppler = require('pdf-poppler'); // <--- NEW LIBRARY
 const { ingestData } = require('./ingestController'); 
 
 // Mock Request/Response for internal call (Kept exactly as is)
-const internalIngest = async (text, type, filename) => {
+const internalIngest = async (text, type, filename, userId) => {
     const req = {
+        userId,
         body: {
             text: text,
             type: type || 'SCANNED_DOC',
@@ -83,9 +84,10 @@ exports.processImage = async (req, res) => {
         else if (lowerText.includes('contract') || lowerText.includes('agreement')) docType = 'CONTRACT';
         else if (lowerText.includes('whatsapp') || lowerText.includes('chat')) docType = 'CHAT_LOG';
         else if (lowerText.includes('receipt')) docType = 'RECEIPT';
+        else if (lowerText.includes('gst') || lowerText.includes('tax return') || lowerText.includes('gstr')) docType = 'GST_RETURN';
 
         // Trigger the ingestion to Memory
-        await internalIngest(cleanedText, docType, req.file.originalname);
+        await internalIngest(cleanedText, docType, req.file.originalname, req.userId);
 
         // Cleanup the original uploaded file
         if (fs.existsSync(filePath)) {

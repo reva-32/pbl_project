@@ -1,14 +1,17 @@
 const mongoose = require('mongoose');
 
 const UserSchema = new mongoose.Schema({
-  email:        { type: String, required: true, unique: true },
-  password:     { type: String, required: true },
-  companyName:  { type: String, required: true },
-  ownerName:    { type: String, required: true },
-  phone:        { type: String, required: true },
-  businessType: { type: String, default: "" },
-  city:         { type: String, default: "" },
-  gstin:        { type: String, default: "" },
+  email:         { type: String, required: true, unique: true },
+  password:      { type: String, required: true },
+  companyName:   { type: String, required: true },
+  ownerName:     { type: String, required: true },
+  phone:         { type: String, required: true },
+  businessType:  { type: String, default: "" },
+  city:          { type: String, default: "" },
+  gstin:         { type: String, default: "" },
+
+  // ── Google Sheets ──
+  googleSheetId: { type: String, default: null },
 
   // ── Settings fields (filled later in Settings page) ──
   pan:          { type: String, default: "" },

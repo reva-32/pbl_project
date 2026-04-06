@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -32,31 +33,7 @@ function getGreeting(): string {
   return "Good evening";
 }
 
-// ── Metrics data ────────────────────────────────────────────────────────────
-const metrics = [
-  {
-    label: "Pending Requests",
-    value: "24",
-    change: "+3 today",
-    icon: Clock,
-    iconClass: "text-primary bg-primary/10",
-  },
-  {
-    label: "Resolved Today",
-    value: "18",
-    change: "+5 vs yesterday",
-    icon: CheckCircle,
-    iconClass: "text-success bg-success/10",
-  },
-  {
-    label: "Avg Response",
-    value: "4.2m",
-    change: "12% faster",
-    icon: Timer,
-    iconClass: "text-warning bg-warning/10",
-  },
-];
-
+// Removed mock metrics array
 // ── Platform config (no emojis — using text labels) ─────────────────────────
 type Platform = "WhatsApp" | "Instagram" | "Facebook" | "Email";
 
@@ -70,46 +47,68 @@ const platformConfig: Record<
   Email:     { variant: "email",     label: "Email"     },
 };
 
-// ── Sample requests ─────────────────────────────────────────────────────────
-const requests = [
-  {
-    id: 1, name: "Ravi Kumar", platform: "WhatsApp" as Platform, time: "2 min ago", initials: "RK",
-    message: "Hi, I need pricing for 500 ceramic mugs with our company logo. Can you share a quote?",
-    aiDraft: "Hi Ravi! Thanks for reaching out. For 500 ceramic mugs with custom logo printing, our pricing is Rs.85/unit (total Rs.42,500). This includes single-color logo printing. For multi-color, it is Rs.95/unit. Delivery in 7-10 business days. Want me to send a formal quotation?",
-  },
-  {
-    id: 2, name: "Sneha Patel", platform: "Instagram" as Platform, time: "8 min ago", initials: "SP",
-    message: "Do you have Diwali gift hampers? What's the delivery time if I order 50 sets?",
-    aiDraft: "Hi Sneha! Yes, we have beautiful Diwali gift hampers starting at Rs.450/set. For 50 sets, we can deliver within 5 days via express shipping (Rs.2,000 extra) or 8 days via standard (free). Would you like to see our hamper catalog?",
-  },
-  {
-    id: 3, name: "Arjun Mehta", platform: "Facebook" as Platform, time: "15 min ago", initials: "AM",
-    message: "Need catering for a corporate event — 200 guests, vegetarian and non-veg options. What's the cost?",
-    aiDraft: "Hello Arjun! For 200 guests with both veg and non-veg options, our packages start at Rs.650/plate (veg) and Rs.850/plate (non-veg). This includes appetizers, main course, desserts, and service staff. Shall I send a detailed menu and quotation?",
-  },
-  {
-    id: 4, name: "Priya Sharma", platform: "Email" as Platform, time: "32 min ago", initials: "PS",
-    message: "Following up on invoice #1042. When can I expect it? Also, do you offer NET 30 payment terms?",
-    aiDraft: "Hi Priya, Invoice #1042 has been generated and is attached to this email. Regarding payment terms — yes, we do offer NET 30 for orders above Rs.50,000. Your current order qualifies. Please let me know if you need any changes to the invoice.",
-  },
-  {
-    id: 5, name: "Deepak Verma", platform: "WhatsApp" as Platform, time: "1 hr ago", initials: "DV",
-    message: "The Bluetooth speaker I bought last week has a crackling sound. What's your return policy?",
-    aiDraft: "Hi Deepak, sorry to hear about the issue! All electronics come with a 15-day return/replacement policy. Since your purchase is within that window, we can arrange a free pickup and send a replacement. Would you like me to initiate the process?",
-  },
-];
+// Removed mock requests
 
 // ── Component ───────────────────────────────────────────────────────────────
 const Dashboard = () => {
   const [editModal, setEditModal] = useState<{
     open: boolean;
-    request: (typeof requests)[0] | null;
+    request: any | null;
   }>({ open: false, request: null });
   const [expandedId, setExpandedId] = useState<number | null>(null);
+  
+  const [requests, setRequests] = useState<any[]>([]);
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    async function loadRequests() {
+      const { data } = await apiFetch<any[]>('/events?type=CUSTOMER_MSG');
+      if (data) {
+        // Map database events to UI format
+        const formatted = data.map((d: any) => ({
+          id: d._id,
+          name: d.content?.name || "Customer",
+          platform: (d.content?.platform || "WhatsApp") as Platform,
+          time: new Date(d.timestamp).toLocaleTimeString(),
+          initials: (d.content?.name || "CC").substring(0, 2).toUpperCase(),
+          message: d.content?.message || d.content?.text || "New message received",
+          aiDraft: d.content?.aiDraft || "Generating draft...",
+        }));
+        setRequests(formatted);
+      }
+      setLoading(false);
+    }
+    loadRequests();
+  }, []);
 
   const user        = getStoredUser();
   const ownerName   = user?.ownerName   ?? "there";
   const companyName = user?.companyName ?? "Your Company";
+
+  const pendingCount = requests.length;
+  const dynamicMetrics = [
+    {
+      label: "Pending Requests",
+      value: pendingCount.toString(),
+      change: `${pendingCount} active`,
+      icon: Clock,
+      iconClass: "text-primary bg-primary/10",
+    },
+    {
+      label: "Resolved Today",
+      value: "0",
+      change: "Tracking active",
+      icon: CheckCircle,
+      iconClass: "text-success bg-success/10",
+    },
+    {
+      label: "Avg Response",
+      value: "< 1m",
+      change: "AI Powered",
+      icon: Timer,
+      iconClass: "text-warning bg-warning/10",
+    },
+  ];
 
   return (
     <AppLayout title="Dashboard">
@@ -127,7 +126,7 @@ const Dashboard = () => {
 
         {/* ── Metrics ── */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {metrics.map((m) => (
+          {dynamicMetrics.map((m) => (
             <Card key={m.label} className="p-5 border-0 shadow-premium bg-card">
               <div className="flex items-center justify-between">
                 <div>
@@ -158,7 +157,11 @@ const Dashboard = () => {
           </div>
 
           <div className="space-y-3">
-            {requests.map((req) => {
+            {loading ? (
+              <p className="text-muted-foreground text-sm text-center py-10">Loading requests...</p>
+            ) : requests.length === 0 ? (
+               <p className="text-muted-foreground text-sm text-center py-10">No customer requests pending. Great job!</p>
+            ) : requests.map((req) => {
               const expanded = expandedId === req.id;
               const cfg      = platformConfig[req.platform];
 

@@ -1,29 +1,47 @@
 const mongoose = require('mongoose');
 
 const decisionSchema = new mongoose.Schema({
-    type: { 
-        type: String, 
+    userId: {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
         required: true,
-        enum: ['VENDOR_ORDER', 'INVOICE', 'CUSTOMER_MSG', 'INTERNAL_NOTE', 'VENDOR_HISTORY'] 
+        index: true
     },
-    // The raw data from email/message
-    content: { 
-        type: Object, 
-        required: true 
+    type: {
+        type: String,
+        required: true,
+        // Extended enum to cover all types produced by OCR auto-categorization
+        enum: [
+            'VENDOR_ORDER',
+            'INVOICE',
+            'CUSTOMER_MSG',
+            'INTERNAL_NOTE',
+            'VENDOR_HISTORY',
+            'CONTRACT',
+            'RECEIPT',
+            'SCANNED_DOC',
+            'CHAT_LOG',
+            'DOCUMENT',
+        ],
     },
-    // The "Brain" part - Vector Embedding
+    // The raw data — from email/chat/OCR
+    content: {
+        type: Object,
+        required: true,
+    },
+    // The "Brain" — 384-dim sentence embedding from all-MiniLM-L6-v2
     embedding: {
         type: [Number],
         required: true,
-        index: true // Helps with performance
+        index: true,
     },
     status: {
         type: String,
-        default: 'PENDING', // PENDING -> APPROVED -> EXECUTED
-        enum: ['PENDING', 'APPROVED', 'REJECTED', 'EXECUTED']
+        default: 'PENDING',
+        enum: ['PENDING', 'APPROVED', 'REJECTED', 'EXECUTED'],
     },
-    timestamp: { type: Date, default: Date.now }
+    timestamp: { type: Date, default: Date.now },
 });
 
-// The 3rd argument forces the exact collection name
+// The 3rd argument forces the exact collection name in MongoDB
 module.exports = mongoose.model('DecisionEvent', decisionSchema, 'decision_events');
