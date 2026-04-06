@@ -1,9 +1,10 @@
+require('dotenv').config();
 const express = require('express');
 const mongoose = require('mongoose');
 const cors = require('cors');
 const bcrypt = require('bcryptjs');
 const jwt = require('jsonwebtoken');
-require('dotenv').config();
+const sheetsService = require('./services/sheets.service');
 
 const app = express();
 app.use(express.json());
@@ -31,23 +32,43 @@ app.post('/api/signup', async (req, res) => {
     if (existingUser) return res.status(400).json({ error: "Email already registered" });
 
     const hashedPassword = await bcrypt.hash(password, 10);
-    const newUser = new User({ email, password: hashedPassword, companyName, ownerName, phone, businessType, city, gstin });
+
+    const newUser = new User({
+      email,
+      password: hashedPassword,
+      companyName,
+      ownerName,
+      phone,
+      businessType,
+      city,
+      gstin
+    });
+
     await newUser.save();
 
-    // ── AUTO-CREATE 14-day free trial subscription on signup ──
+    // ✅ CREATE GOOGLE SHEET HERE (INSIDE TRY)
+    const spreadsheetId = await sheetsService.createCompanySheet(companyName);
+
+    newUser.googleSheetId = spreadsheetId;
+    await newUser.save();
+
+    // ── AUTO-CREATE 14-day free trial subscription ──
     const now = new Date();
     const trialEnd = new Date(now);
     trialEnd.setDate(trialEnd.getDate() + 14);
 
     await new Subscription({
-      userId:         newUser._id,
-      plan:           'free_trial',
-      status:         'trial',
+      userId: newUser._id,
+      plan: 'free_trial',
+      status: 'trial',
       trialStartDate: now,
-      trialEndDate:   trialEnd,
+      trialEndDate: trialEnd,
     }).save();
 
-    res.status(201).json({ message: "Registration successful! Your 14-day free trial has started." });
+    res.status(201).json({
+      message: "Registration successful! Your 14-day free trial has started."
+    });
+
   } catch (err) {
     console.error(err);
     res.status(500).json({ error: "Server error during registration" });
@@ -88,17 +109,17 @@ app.post('/api/login', async (req, res) => {
     res.json({
       token,
       user: {
-        email:        user.email,
-        companyName:  user.companyName,
-        ownerName:    user.ownerName,
-        phone:        user.phone,
+        email: user.email,
+        companyName: user.companyName,
+        ownerName: user.ownerName,
+        phone: user.phone,
         businessType: user.businessType,
-        city:         user.city,
-        gstin:        user.gstin,
+        city: user.city,
+        gstin: user.gstin,
       },
       subscription: {
-        plan:               sub?.plan ?? 'free_trial',
-        status:             subscriptionStatus ?? 'trial',
+        plan: sub?.plan ?? 'free_trial',
+        status: subscriptionStatus ?? 'trial',
         trialDaysRemaining: trialDaysRemaining,
         // canAccess = trial active OR paid plan active
         canAccess: subscriptionStatus === 'trial' || subscriptionStatus === 'active',
@@ -111,9 +132,53 @@ app.post('/api/login', async (req, res) => {
   }
 });
 
+app.post('/api/inventory/add', async (req, res) => {
+  try {
+    const { spreadsheetId, data } = req.body;
+    await sheetsService.addInventory(spreadsheetId, data);
+    res.json({ message: "Inventory item added" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to add inventory" });
+  }
+});
+
+app.post('/api/orders/add', async (req, res) => {
+  try {
+    const { spreadsheetId, data } = req.body;
+    await sheetsService.addOrder(spreadsheetId, data);
+    res.json({ message: "Order added" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to add order" });
+  }
+});
+
+app.post('/api/vendors/add', async (req, res) => {
+  try {
+    const { spreadsheetId, data } = req.body;
+    await sheetsService.addVendor(spreadsheetId, data);
+    res.json({ message: "Vendor added" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to add vendor" });
+  }
+});
+
+app.post('/api/customers/add', async (req, res) => {
+  try {
+    const { spreadsheetId, data } = req.body;
+    await sheetsService.addCustomer(spreadsheetId, data);
+    res.json({ message: "Customer added" });
+  } catch (err) {
+    console.error(err);
+    res.status(500).json({ error: "Failed to add customer" });
+  }
+});
+
 // ── Route files ────────────────────────────────────────────────────────────
 app.use('/api/settings', require('./routes/settings'));
-app.use('/api/billing',  require('./routes/billing'));
+app.use('/api/billing', require('./routes/billing'));
 
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
