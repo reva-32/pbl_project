@@ -26,6 +26,7 @@ pnpm-debug.log*
 # Uploaded user files (do not commit uploads)
 /uploads/
 /backend/uploads/
+/backend/public/invoices/
 
 # OS and editor files
 .DS_Store

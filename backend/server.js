@@ -12,6 +12,9 @@ const settingsRoutes= require('./routes/settings');
 const ingestRoutes  = require('./routes/ingest');
 const searchRoutes  = require('./routes/search');
 const entitiesRoutes= require('./routes/entities');
+const webhookRoutes = require('./routes/webhook');
+const messageRoutes = require('./routes/messages');
+
 
 const app  = express();
 const PORT = process.env.PORT || 5000;
@@ -53,6 +56,9 @@ app.use('/api/settings',  settingsRoutes);  // GET/PUT  /api/settings/...
 app.use('/api/ingest',    ingestRoutes);    // POST /api/ingest, POST /api/ingest/ocr
 app.use('/api/search',    searchRoutes);    // POST /api/search
 app.use('/api',           entitiesRoutes);  // GET/POST /api/vendors, /customers, /inventory
+app.use('/api/webhook',   webhookRoutes);   // Webhook (Meta)
+app.use('/api/messages',  messageRoutes);   // Outgoing Replies
+
 
 // ── Health check & Root ────────────────────────────────────────────────────────
 app.get('/', (_req, res) => res.send('MSME-360 API Server is running. Access endpoints via /api/...'));

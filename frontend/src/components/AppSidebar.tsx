@@ -1,4 +1,4 @@
-import { Inbox, Bot, Wallet, Plug, Settings, ChevronLeft, Users } from "lucide-react";
+import { Inbox, Bot, Wallet, Plug, Settings, ChevronLeft, Users, MessageSquare } from "lucide-react";
 import { NavLink } from "@/components/NavLink";
 import { useLocation } from "react-router-dom";
 import {
@@ -16,7 +16,9 @@ import {
 
 const navItems = [
   { title: "Dashboard", url: "/dashboard", icon: Inbox },
+  { title: "Smart Inbox", url: "/inbox", icon: MessageSquare },
   { title: "AI Command Center", url: "/ai", icon: Bot },
+
   { title: "Financial Hub", url: "/finance", icon: Wallet },
   { title: "Integrations", url: "/integrations", icon: Plug },
   { title: "Directory", url: "/directory", icon: Users },

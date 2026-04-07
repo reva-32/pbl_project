@@ -12,7 +12,9 @@ import FinancialHub from "./pages/FinancialHub";
 import Integrations from "./pages/Integrations";
 import Settings from "./pages/Settings";
 import Directory from "./pages/Directory";
+import SmartInbox from "./pages/SmartInbox";
 import NotFound from "./pages/NotFound";
+
 
 const queryClient = new QueryClient();
 
@@ -41,7 +43,9 @@ const App = () => (
           <Route path="/finance"      element={<ProtectedRoute><FinancialHub /></ProtectedRoute>} />
           <Route path="/integrations" element={<ProtectedRoute><Integrations /></ProtectedRoute>} />
           <Route path="/directory"    element={<ProtectedRoute><Directory /></ProtectedRoute>} />
+          <Route path="/inbox"        element={<ProtectedRoute><SmartInbox /></ProtectedRoute>} />
           <Route path="/settings"     element={<ProtectedRoute><Settings /></ProtectedRoute>} />
+
 
           <Route path="*" element={<NotFound />} />
         </Routes>
