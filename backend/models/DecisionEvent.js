@@ -38,7 +38,7 @@ const decisionSchema = new mongoose.Schema({
     status: {
         type: String,
         default: 'PENDING',
-        enum: ['PENDING', 'APPROVED', 'REJECTED', 'EXECUTED'],
+        enum: ['PENDING', 'PAID', 'DISCARDED', 'APPROVED', 'REJECTED', 'EXECUTED'],
     },
     timestamp: { type: Date, default: Date.now },
 });
