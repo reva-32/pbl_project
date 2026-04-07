@@ -1,4 +1,4 @@
-const DecisionEvent = require('../models/decisionEvent');
+const DecisionEvent = require('../models/DecisionEvent');
 const User          = require('../models/user');
 const Groq          = require('groq-sdk');
 const { getEmbedding } = require('../services/ragService');
