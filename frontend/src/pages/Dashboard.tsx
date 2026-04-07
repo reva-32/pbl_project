@@ -58,14 +58,16 @@ const Dashboard = () => {
   const [expandedId, setExpandedId] = useState<number | null>(null);
   
   const [requests, setRequests] = useState<any[]>([]);
+  const [resolvedCount, setResolvedCount] = useState(0);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    async function loadRequests() {
-      const { data } = await apiFetch<any[]>('/events?type=CUSTOMER_MSG');
+    async function loadData() {
+      // Fetch all events to calculate metrics
+      const { data } = await apiFetch<any[]>('/events');
       if (data) {
-        // Map database events to UI format
-        const formatted = data.map((d: any) => ({
+        // Filter messages for the list
+        const msgs = data.filter((d: any) => d.type === 'CUSTOMER_MSG').map((d: any) => ({
           id: d._id,
           name: d.content?.name || "Customer",
           platform: (d.content?.platform || "WhatsApp") as Platform,
@@ -74,11 +76,19 @@ const Dashboard = () => {
           message: d.content?.message || d.content?.text || "New message received",
           aiDraft: d.content?.aiDraft || "Generating draft...",
         }));
-        setRequests(formatted);
+        setRequests(msgs);
+
+        // Count resolved today (Invoices + Completed as a proxy)
+        const today = new Date().setHours(0,0,0,0);
+        const resolved = data.filter((d: any) => {
+          const dDate = new Date(d.timestamp).setHours(0,0,0,0);
+          return dDate === today && (d.type === 'INVOICE' || d.status === 'resolved');
+        });
+        setResolvedCount(resolved.length);
       }
       setLoading(false);
     }
-    loadRequests();
+    loadData();
   }, []);
 
   const user        = getStoredUser();
@@ -96,7 +106,7 @@ const Dashboard = () => {
     },
     {
       label: "Resolved Today",
-      value: "0",
+      value: resolvedCount.toString(),
       change: "Tracking active",
       icon: CheckCircle,
       iconClass: "text-success bg-success/10",

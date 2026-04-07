@@ -28,21 +28,27 @@ export function AppSidebar() {
   const collapsed = state === "collapsed";
   const location = useLocation();
 
+  // ── Dynamic branding ────────────────────────────────────────────────────────
+  const raw = localStorage.getItem("user");
+  const user = raw ? JSON.parse(raw) : null;
+  const companyName = user?.companyName || "MSME 360";
+  const initials = companyName.substring(0, 1).toUpperCase();
+
   return (
     <Sidebar collapsible="icon" className="border-r border-sidebar-border">
       <SidebarHeader className="p-4">
         <div className="flex items-center justify-between">
           {!collapsed && (
             <div className="flex items-center gap-2">
-              <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center">
-                <span className="text-sm font-bold text-primary-foreground">M</span>
+              <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center shrink-0">
+                <span className="text-sm font-bold text-primary-foreground">{initials}</span>
               </div>
-              <span className="font-semibold text-foreground text-base">MSME 360</span>
+              <span className="font-semibold text-foreground text-sm truncate mr-2">{companyName}</span>
             </div>
           )}
           {collapsed && (
             <div className="h-8 w-8 rounded-lg gradient-primary flex items-center justify-center mx-auto">
-              <span className="text-sm font-bold text-primary-foreground">M</span>
+              <span className="text-sm font-bold text-primary-foreground">{initials}</span>
             </div>
           )}
         </div>

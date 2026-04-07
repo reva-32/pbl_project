@@ -67,23 +67,9 @@ function renderMarkdown(text: string) {
   );
 }
 
-// ── Initial AI greeting ────────────────────────────────────────────────────────
-const INITIAL_MESSAGES: Message[] = [
-  {
-    id: 1,
-    role: "ai",
-    content: "Hello! I'm your MSME 360 AI assistant. I can help you generate invoices, scan receipts, analyse finances, and answer business questions.",
-    followUps: [
-      "Generate an invoice for my last client",
-      "Scan a receipt for expense tracking",
-      "Show my revenue projections for Q2",
-    ],
-  },
-];
-
 // ── Component ──────────────────────────────────────────────────────────────────
 const AICommandCenter = () => {
-  const [messages, setMessages] = useState<Message[]>(INITIAL_MESSAGES);
+  const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [attachedFile, setAttachedFile] = useState<File | null>(null);
@@ -91,6 +77,27 @@ const AICommandCenter = () => {
 
   const fileRef = useRef<HTMLInputElement>(null);
   const endRef  = useRef<HTMLDivElement>(null);
+
+  // Initialize personalized greeting
+  useEffect(() => {
+    const raw = localStorage.getItem("user");
+    const user = raw ? JSON.parse(raw) : null;
+    const name = user?.ownerName || "there";
+    const company = user?.companyName || "your business";
+
+    setMessages([
+      {
+        id: 1,
+        role: "ai",
+        content: `Hello ${name}! I'm your **${company}** AI consultant. I can help you generate invoices, scan receipts, analyse finances, and answer business questions.`,
+        followUps: [
+          "Generate an invoice for my last client",
+          "Scan a receipt for expense tracking",
+          "Show my revenue projections for Q2",
+        ],
+      },
+    ]);
+  }, []);
 
   // Auto-scroll on new messages
   useEffect(() => {

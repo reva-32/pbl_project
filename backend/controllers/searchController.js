@@ -1,4 +1,5 @@
 const DecisionEvent = require('../models/decisionEvent');
+const User          = require('../models/user');
 const Groq          = require('groq-sdk');
 const { getEmbedding } = require('../services/ragService');
 const { createInvoicePDF } = require('../utils/invoiceGenerator');
@@ -13,6 +14,12 @@ exports.searchEvents = async (req, res) => {
         if (!query) return res.status(400).json({ error: 'Query required' });
 
         console.log(`🤔 User asks: "${query}"`);
+
+        // ── Fetch User Profile for Personalization ───────────────────────────
+        const profile = await User.findById(req.userId).select('ownerName companyName businessType');
+        const ownerName = profile?.ownerName || 'Business Owner';
+        const companyName = profile?.companyName || 'My Business';
+        const businessType = profile?.businessType || 'MSME';
 
         const queryVector = await getEmbedding(query);
         const mongoose = require('mongoose');
@@ -35,22 +42,23 @@ exports.searchEvents = async (req, res) => {
             : 'EMPTY';
 
         const systemPrompt = `
-        You are an elite AI Business Consultant & Agent for MSME 360.
+        You are the elite AI Business Consultant for ${companyName}, owned by ${ownerName}.
+        The business type is ${businessType}.
         INTERNAL RECORDS: ${internalContext}
         
         INSTRUCTIONS:
         1. **TASK: INVOICE**: If user wants an invoice, output JSON ONLY:
-           { "action": "generate_invoice", "data": { "businessName": "Name", "businessContact": "Contact", "ownerContact": "Owner", "clientName": "Client", "amount": "100", "detailedDescription": "Desc" } }
-           (Extract from query. Use generic placeholders like '[Your Business]' if they didn't provide some details).
+           { "action": "generate_invoice", "data": { "businessName": "${companyName}", "businessContact": "Contact", "ownerContact": "${ownerName}", "clientName": "Client", "amount": "100", "detailedDescription": "Desc" } }
+           (Extract specific details from the query. Use "${companyName}" as the default businessName if not specified).
         
         2. **TASK: FINANCIAL**: Output JSON ONLY:
            { "action": "financial_projection", "data": { "currentRevenue": "100", "currentExpenses": "50", "revenueGrowth": "20", "expenseGrowth": "10" } }
 
-        3. **GENERAL QUESTIONS**: Provide a highly detailed, precise, and professional answer. 
+        3. **GENERAL QUESTIONS**: Provide a highly detailed, precise, and professional answer on behalf of ${companyName}.
            - DO NOT ever apologize or mention "I couldn't find specific internal records". Just answer the question directly.
            - Use the INTERNAL RECORDS if relevant. If not, use your vast business knowledge.
 
-        4. **FOLLOW-UPS (MANDATORY FOR TEXT ANSWERS)**: Always end your text response with 2 to 3 insightful follow-up questions the user should consider. Format them as bullet points under the exact bold heading: "**Suggested Follow-ups:**".
+        4. **FOLLOW-UPS (MANDATORY FOR TEXT ANSWERS)**: Always end your text response with 2 to 3 insightful follow-up questions for ${ownerName}. Format them as bullet points under the exact bold heading: "**Suggested Follow-ups:**".
         `;
 
         const chatCompletion = await groq.chat.completions.create({
@@ -90,10 +98,14 @@ exports.searchEvents = async (req, res) => {
                         }).save();
                     }
 
+                    // Construct the full URL including the backend host
+                    const fullHost = `${req.protocol}://${req.get('host')}`;
+                    const fullDownloadUrl = `${fullHost}${pdfResult.downloadUrl}`;
+
                     return res.status(200).json({
                         answer: `I have generated the detailed invoice for ${invoiceData.clientName}. Your signature has been attached.`,
                         action: 'download',
-                        downloadUrl: pdfResult.downloadUrl,
+                        downloadUrl: fullDownloadUrl,
                         sources: results,
                     });
                 }
