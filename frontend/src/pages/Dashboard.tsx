@@ -82,7 +82,8 @@ const Dashboard = () => {
         const today = new Date().setHours(0,0,0,0);
         const resolved = data.filter((d: any) => {
           const dDate = new Date(d.timestamp).setHours(0,0,0,0);
-          return dDate === today && (d.type === 'INVOICE' || d.status === 'resolved');
+          const s = d.status?.toUpperCase();
+          return dDate === today && (s === 'PAID' || s === 'APPROVED' || s === 'EXECUTED');
         });
         setResolvedCount(resolved.length);
       }

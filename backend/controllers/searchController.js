@@ -87,15 +87,23 @@ exports.searchEvents = async (req, res) => {
                     const pdfResult = await createInvoicePDF(invoiceData);
 
                     if (pdfResult.success) {
-                        const invoiceText = `Invoice generated for ${invoiceData.clientName}. Amount: $${invoiceData.amount}. Description: ${invoiceData.detailedDescription}`;
+                        // Better summary for vector search & retrieval
+                        const invoiceText = `INVOICE: ${invoiceData.clientName} - ${invoiceData.amount}. Details: ${invoiceData.detailedDescription}`;
                         const invoiceEmbedding = await getEmbedding(invoiceText);
+                        
                         await new DecisionEvent({
                             userId: req.userId,
                             type: 'INVOICE',
-                            content: { text: invoiceText, client: invoiceData.clientName, amount: invoiceData.amount },
+                            content: { 
+                                text: invoiceText, 
+                                client: invoiceData.clientName, 
+                                amount: invoiceData.amount,
+                                downloadUrl: pdfResult.downloadUrl // CRITICAL: Save relative path for frontend
+                            },
                             embedding: invoiceEmbedding,
                             timestamp: new Date(),
                         }).save();
+                        console.log('✅ Invoice record saved to database with download link.');
                     }
 
                     // Construct the full URL including the backend host

@@ -4,15 +4,22 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { useEffect, useState } from "react";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { IndianRupee, FileText, AlertTriangle, Download, FileBarChart, Loader2 } from "lucide-react";
+import { IndianRupee, FileText, AlertTriangle, Download, FileBarChart, Loader2, ChevronDown } from "lucide-react";
 import { apiFetch } from "@/lib/api";
-
-// Removed mock GST arrays and widgets
+import { toast } from "sonner";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 
 const statusBadge = (status: string) => {
-  if (status === "Filed" || status === "Paid") return "success";
-  if (status === "Pending") return "warning";
-  return "destructive";
+  const s = status.toUpperCase();
+  if (s === "FILED" || s === "PAID" || s === "APPROVED") return "success";
+  if (s === "PENDING") return "warning";
+  if (s === "DISCARDED" || s === "REJECTED") return "destructive";
+  return "secondary";
 };
 
 const FinancialHub = () => {
@@ -20,26 +27,46 @@ const FinancialHub = () => {
   const [gstReturns, setGstReturns] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
 
+  const loadData = async () => {
+    setLoading(true);
+    const [invRes, gstRes] = await Promise.all([
+      apiFetch<any[]>('/events?type=INVOICE'),
+      apiFetch<any[]>('/events?type=GST_RETURN')
+    ]);
+    
+    if (invRes.data) setInvoices(invRes.data);
+    if (gstRes.data) setGstReturns(gstRes.data);
+    setLoading(false);
+  };
+
   useEffect(() => {
-    async function loadData() {
-      const [invRes, gstRes] = await Promise.all([
-        apiFetch<any[]>('/events?type=INVOICE'),
-        apiFetch<any[]>('/events?type=GST_RETURN')
-      ]);
-      
-      if (invRes.data) setInvoices(invRes.data);
-      if (gstRes.data) setGstReturns(gstRes.data);
-      
-      setLoading(false);
-    }
     loadData();
   }, []);
 
+  const handleStatusChange = async (id: string, newStatus: string) => {
+    const { error } = await apiFetch(`/events/${id}/status`, {
+      method: 'PATCH',
+      body: JSON.stringify({ status: newStatus })
+    });
+
+    if (error) {
+      toast.error(error);
+      return;
+    }
+
+    toast.success(`Status updated to ${newStatus}`);
+    
+    // Optimistic / Local update
+    setInvoices(prev => prev.map(inv => 
+      inv._id === id ? { ...inv, status: newStatus.toUpperCase() } : inv
+    ));
+  };
+
   // Compute dynamic widgets based on AI invoices
   const totalRevenue = invoices.reduce((sum, inv) => sum + (parseFloat(inv.content?.amount) || 0), 0);
-  const outstandingCount = invoices.filter(inv => inv.status !== 'Paid' && inv.status !== 'Resolved').length;
+  const outstandingCount = invoices.filter(inv => inv.status !== 'PAID' && inv.status !== 'APPROVED').length;
   const outstandingValue = invoices
-    .filter(inv => inv.status !== 'Paid' && inv.status !== 'Resolved')
+    .filter(inv => inv.status !== 'PAID' && inv.status !== 'APPROVED')
     .reduce((sum, inv) => sum + (parseFloat(inv.content?.amount) || 0), 0);
   const estimatedGst = totalRevenue * 0.18; // Flat 18% estimation
 
@@ -143,10 +170,30 @@ const FinancialHub = () => {
                   <TableCell>₹{inv.content?.amount || "0"}</TableCell>
                   <TableCell>{new Date(inv.timestamp).toLocaleDateString()}</TableCell>
                   <TableCell>
-                    <Badge variant={statusBadge(inv.status) as any}>{inv.status}</Badge>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-7 px-0 hover:bg-transparent">
+                          <Badge variant={statusBadge(inv.status) as any} className="cursor-pointer flex items-center gap-1 group">
+                            {inv.status}
+                            <ChevronDown className="h-3 w-3 opacity-50 group-hover:opacity-100 transition-opacity" />
+                          </Badge>
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="start">
+                        <DropdownMenuItem onClick={() => handleStatusChange(inv._id, 'PAID')}>
+                          Mark as Paid
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleStatusChange(inv._id, 'PENDING')}>
+                          Mark as Pending
+                        </DropdownMenuItem>
+                        <DropdownMenuItem onClick={() => handleStatusChange(inv._id, 'DISCARDED')}>
+                          Discard Deal
+                        </DropdownMenuItem>
+                      </DropdownMenuContent>
+                    </DropdownMenu>
                   </TableCell>
                   <TableCell className="text-right">
-                    <Button variant="ghost" size="icon">
+                    <Button variant="ghost" size="icon" onClick={() => window.open(inv.content?.downloadUrl, "_blank")}>
                       <Download className="h-4 w-4 text-muted-foreground" />
                     </Button>
                   </TableCell>
