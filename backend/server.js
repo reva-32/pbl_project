@@ -56,9 +56,10 @@ const allowedOrigins = [
 
 app.use(cors({ 
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || origin.includes('vercel.app')) {
+    if (!origin || allowedOrigins.includes(origin) || origin.includes('vercel.app') || origin.includes('onrender.com')) {
       callback(null, true);
     } else {
+      console.warn(`🚫 CORS Blocked Origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
