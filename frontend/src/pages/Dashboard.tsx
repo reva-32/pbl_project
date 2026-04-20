@@ -185,6 +185,7 @@ const Dashboard = () => {
             {loading ? (
               <p className="text-muted-foreground text-sm text-center py-10">Loading requests...</p>
             ) : requests.length === 0 ? (
+               <p className="text-muted-foreground text-sm text-center py-10">No customer requests pending. Great job!</p>
             ) : requests.map((req) => {
               const expanded = expandedId === req.id;
               const cfg      = platformConfig[req.platform];
