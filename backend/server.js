@@ -1,4 +1,14 @@
 require('dotenv').config();
+console.log('🚀 SYSTEM BOOT: Starting MSME-360 API Server...');
+
+const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'GROQ_API_KEY'];
+requiredEnv.forEach(key => {
+  if (!process.env[key]) {
+    console.error(`❌ FATAL ERROR: Missing environment variable: ${key}`);
+    process.exit(1);
+  }
+});
+
 const express   = require('express');
 const cors      = require('cors');
 const mongoose  = require('mongoose');
