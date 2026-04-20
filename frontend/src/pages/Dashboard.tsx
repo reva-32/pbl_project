@@ -171,7 +171,6 @@ const Dashboard = () => {
             {loading ? (
               <p className="text-muted-foreground text-sm text-center py-10">Loading requests...</p>
             ) : requests.length === 0 ? (
-               <p className="text-muted-foreground text-sm text-center py-10">No customer requests pending. Great job!</p>
             ) : requests.map((req) => {
               const expanded = expandedId === req.id;
               const cfg      = platformConfig[req.platform];
@@ -192,9 +191,15 @@ const Dashboard = () => {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center gap-2 flex-wrap">
                         <span className="font-semibold text-sm text-foreground">{req.name}</span>
-                        <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">
-                          {cfg.label}
-                        </Badge>
+                        {cfg ? (
+                          <Badge variant={cfg.variant} className="text-[10px] px-1.5 py-0">
+                            {cfg.label}
+                          </Badge>
+                        ) : (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                            Message
+                          </Badge>
+                        )}
                         <span className="text-[11px] text-muted-foreground ml-auto">
                           {req.time}
                         </span>
