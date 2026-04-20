@@ -97,14 +97,19 @@ if (process.env.NODE_ENV === 'production') {
   app.get('/', (_req, res) => res.send('MSME-360 API Server is running. Access endpoints via /api/...'));
 }
 
-// ── MongoDB Connection ────────────────────────────────────────────────────────
-mongoose
-  .connect(process.env.MONGO_URI)
-  .then(() => {
-    console.log('✅ MongoDB connected');
-    app.listen(PORT, () => console.log(`🚀 MSME-360 API running → http://localhost:${PORT}`));
-  })
-  .catch((err) => {
-    console.error('❌ MongoDB connection failed:', err.message);
-    process.exit(1);
-  });
+// ── Server Start ──────────────────────────────────────────────────────────────
+app.listen(PORT, () => {
+  console.log(`🚀 MSME-360 API running → http://localhost:${PORT}`);
+  
+  // ── MongoDB Connection (Connect after port is open) ──────────────────────────
+  console.log('📡 Connecting to MongoDB Atlas...');
+  mongoose
+    .connect(process.env.MONGO_URI)
+    .then(() => {
+      console.log('✅ MongoDB connected successfully');
+    })
+    .catch((err) => {
+      console.error('❌ MongoDB connection failed:', err.message);
+      // We don't exit immediately so we can see the full error in the logs
+    });
+});
