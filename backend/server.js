@@ -10,20 +10,31 @@ requiredEnv.forEach(key => {
 });
 
 const express   = require('express');
+console.log('✅ Express loaded');
 const cors      = require('cors');
 const mongoose  = require('mongoose');
+console.log('✅ Base libraries loaded');
 const path      = require('path');
 const fs        = require('fs');
 
 // ── Route imports ─────────────────────────────────────────────────────────────
+console.log('📦 Loading routes...');
 const authRoutes    = require('./routes/auth');
+console.log('   - Auth routes ready');
 const billingRoutes = require('./routes/billing');
+console.log('   - Billing routes ready');
 const settingsRoutes= require('./routes/settings');
+console.log('   - Settings routes ready');
 const ingestRoutes  = require('./routes/ingest');
+console.log('   - Ingest routes ready');
 const searchRoutes  = require('./routes/search');
+console.log('   - Search routes ready');
 const entitiesRoutes= require('./routes/entities');
+console.log('   - Entities routes ready');
 const webhookRoutes = require('./routes/webhook');
+console.log('   - Webhook routes ready');
 const messageRoutes = require('./routes/messages');
+console.log('   - Message routes ready');
 
 
 const app  = express();
