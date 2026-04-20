@@ -63,31 +63,45 @@ const Dashboard = () => {
 
   useEffect(() => {
     async function loadData() {
-      // Fetch all events to calculate metrics
-      const { data } = await apiFetch<any[]>('/events');
-      if (data) {
-        // Filter messages for the list
-        const msgs = data.filter((d: any) => d.type === 'CUSTOMER_MSG').map((d: any) => ({
-          id: d._id,
-          name: d.content?.name || "Customer",
-          platform: (d.content?.platform || "WhatsApp") as Platform,
-          time: new Date(d.timestamp).toLocaleTimeString(),
-          initials: (d.content?.name || "CC").substring(0, 2).toUpperCase(),
-          message: d.content?.message || d.content?.text || "New message received",
-          aiDraft: d.content?.aiDraft || "Generating draft...",
-        }));
-        setRequests(msgs);
+      try {
+        setLoading(true);
+        // Fetch recent events to calculate metrics
+        const { data, error } = await apiFetch<any[]>('/events?limit=200');
+        
+        if (error) {
+          console.warn('⚠️ Dashboard partial load error:', error);
+          setLoading(false);
+          return;
+        }
 
-        // Count resolved today (Invoices + Completed as a proxy)
-        const today = new Date().setHours(0,0,0,0);
-        const resolved = data.filter((d: any) => {
-          const dDate = new Date(d.timestamp).setHours(0,0,0,0);
-          const s = d.status?.toUpperCase();
-          return dDate === today && (s === 'PAID' || s === 'APPROVED' || s === 'EXECUTED');
-        });
-        setResolvedCount(resolved.length);
+        if (data && Array.isArray(data)) {
+          // Filter messages for the list
+          const msgs = data.filter((d: any) => d.type === 'CUSTOMER_MSG').map((d: any) => ({
+            id: d._id,
+            name: d.content?.name || "Customer",
+            platform: (d.content?.platform || "WhatsApp") as Platform,
+            time: d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : "Recent",
+            initials: (d.content?.name || "CC").substring(0, 2).toUpperCase(),
+            message: d.content?.message || d.content?.text || "New message received",
+            aiDraft: d.content?.aiDraft || "Generating draft...",
+          }));
+          setRequests(msgs);
+
+          // Count resolved today (Invoices + Completed as a proxy)
+          const today = new Date().setHours(0,0,0,0);
+          const resolved = data.filter((d: any) => {
+            if (!d.timestamp) return false;
+            const dDate = new Date(d.timestamp).setHours(0,0,0,0);
+            const s = d.status?.toUpperCase();
+            return dDate === today && (s === 'PAID' || s === 'APPROVED' || s === 'EXECUTED');
+          });
+          setResolvedCount(resolved.length);
+        }
+      } catch (err) {
+        console.error('🔥 Dashboard crash prevented:', err);
+      } finally {
+        setLoading(false);
       }
-      setLoading(false);
     }
     loadData();
   }, []);

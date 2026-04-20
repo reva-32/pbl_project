@@ -35,7 +35,12 @@ router.get('/events', authMiddleware, async (req, res) => {
     try {
         const query = { userId: req.userId };
         if (req.query.type) query.type = req.query.type;
-        const events = await DecisionEvent.find(query).sort({ timestamp: -1 });
+        
+        const limit = parseInt(req.query.limit) || 500; // Default max 500
+        const events = await DecisionEvent.find(query)
+            .sort({ timestamp: -1 })
+            .limit(limit);
+            
         res.json(events);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });

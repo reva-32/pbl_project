@@ -23,11 +23,21 @@ export async function apiFetch<T>(
         ...(options.headers ?? {}),
       },
     });
+
+    // Check if the response is JSON
+    const contentType = res.headers.get('content-type');
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await res.text();
+      console.warn(`⚠️ Non-JSON response from ${path}:`, text.substring(0, 100));
+      return { data: null, error: res.ok ? 'Unexpected response format' : `Error ${res.status}` };
+    }
+
     const json = await res.json();
-    if (!res.ok) return { data: null, error: json.error ?? 'Request failed' };
+    if (!res.ok) return { data: null, error: json.error ?? `Error ${res.status}` };
     return { data: json as T, error: null };
-  } catch {
-    return { data: null, error: 'Cannot connect to server' };
+  } catch (err: any) {
+    console.error(`❌ apiFetch failed for ${path}:`, err.message);
+    return { data: null, error: 'Connection failed' };
   }
 }
 
