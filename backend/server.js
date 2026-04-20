@@ -92,16 +92,28 @@ app.get('/health', (_req, res) => res.json({
 // ── Production Frontend Serving ───────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
   const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+  console.log(`📂 Production Mode: Serving frontend from ${frontendDistPath}`);
   
-  // Serve static assets from the frontend build folder
+  if (fs.existsSync(frontendDistPath)) {
+    console.log('✅ frontend/dist folder found!');
+    const files = fs.readdirSync(frontendDistPath);
+    console.log(`📝 Files in dist: ${files.join(', ')}`);
+  } else {
+    console.error('❌ ERROR: frontend/dist folder NOT FOUND! Check build logs.');
+    // Check root directory to help debug
+    console.log(`📁 Root Dir contents: ${fs.readdirSync(path.join(__dirname, '..')).join(', ')}`);
+  }
+
   app.use(express.static(frontendDistPath));
 
-  // Catch-all route: Send back index.html for any request that doesn't match an API route
-  // This is required for React Router's client-side routing to work on page refresh.
   app.get('*', (req, res) => {
-    // Skip API routes to avoid confusion
-    if (req.path.startsWith('/api') || req.path.startsWith('/invoices')) return;
-    res.sendFile(path.join(frontendDistPath, 'index.html'));
+    // ONLY serve index.html if it's not a request for a specific file (contains no dot)
+    // or if it explicitly starts with one of our main app routes.
+    if (!req.path.includes('.') || req.path.startsWith('/dashboard') || req.path === '/') {
+      res.sendFile(path.join(frontendDistPath, 'index.html'));
+    } else {
+      res.status(404).send('Asset not found');
+    }
   });
 } else {
   // Simple landing page for dev mode
