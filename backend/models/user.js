@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   businessType:  { type: String, default: "" },
   city:          { type: String, default: "" },
   gstin:         { type: String, default: "" },
+  whatsappPhoneNumberId: { type: String, default: null, index: true },
 
   // ── Google Sheets ──
   googleSheetId: { type: String, default: null },

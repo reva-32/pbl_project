@@ -60,9 +60,32 @@ app.use('/api/webhook',   webhookRoutes);   // Webhook (Meta)
 app.use('/api/messages',  messageRoutes);   // Outgoing Replies
 
 
-// ── Health check & Root ────────────────────────────────────────────────────────
-app.get('/', (_req, res) => res.send('MSME-360 API Server is running. Access endpoints via /api/...'));
-app.get('/health', (_req, res) => res.json({ status: 'ok', service: 'MSME-360 API' }));
+// ── Health check ──────────────────────────────────────────────────────────────
+app.get('/health', (_req, res) => res.json({ 
+  status: 'ok', 
+  service: 'MSME-360 API', 
+  timestamp: new Date().toISOString(),
+  environment: process.env.NODE_ENV || 'development'
+}));
+
+// ── Production Frontend Serving ───────────────────────────────────────────────
+if (process.env.NODE_ENV === 'production') {
+  const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
+  
+  // Serve static assets from the frontend build folder
+  app.use(express.static(frontendDistPath));
+
+  // Catch-all route: Send back index.html for any request that doesn't match an API route
+  // This is required for React Router's client-side routing to work on page refresh.
+  app.get('*', (req, res) => {
+    // Skip API routes to avoid confusion
+    if (req.path.startsWith('/api') || req.path.startsWith('/invoices')) return;
+    res.sendFile(path.join(frontendDistPath, 'index.html'));
+  });
+} else {
+  // Simple landing page for dev mode
+  app.get('/', (_req, res) => res.send('MSME-360 API Server is running. Access endpoints via /api/...'));
+}
 
 // ── MongoDB Connection ────────────────────────────────────────────────────────
 mongoose

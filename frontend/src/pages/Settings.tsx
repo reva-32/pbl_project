@@ -29,6 +29,7 @@ interface UserSettings {
   city:          string;
   gstin:         string;
   pan:           string;
+  whatsappPhoneNumberId: string;
   address:       string;
   currency:      string;
   language:      string;
@@ -241,6 +242,7 @@ const Settings = () => {
   const [pan,           setPan]           = useState("");
   const [businessType,  setBusinessType]  = useState("");
   const [city,          setCity]          = useState("");
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState("");
 
   const [currency,      setCurrency]      = useState("inr");
   const [invoicePrefix, setInvoicePrefix] = useState("INV-");
@@ -292,6 +294,7 @@ const Settings = () => {
     setPan(u.pan ?? "");
     setBusinessType(u.businessType ?? "");
     setCity(u.city ?? "");
+    setWhatsappPhoneNumberId(u.whatsappPhoneNumberId ?? "");
     setCurrency(u.currency ?? "inr");
     setInvoicePrefix(u.invoicePrefix ?? "INV-");
     setPaymentTerms(u.paymentTerms ?? "net30");
@@ -433,13 +436,28 @@ const Settings = () => {
                       <Label>PAN Number</Label>
                       <Input value={pan} onChange={(e) => setPan(e.target.value)} className="mt-1.5" />
                     </div>
+                    <div className="sm:col-span-2">
+                      <Label className="flex items-center gap-1.5">
+                        WhatsApp Phone Number ID
+                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-normal">REQUIRED FOR WEBHOOKS</Badge>
+                      </Label>
+                      <Input 
+                        value={whatsappPhoneNumberId} 
+                        onChange={(e) => setWhatsappPhoneNumberId(e.target.value)} 
+                        className="mt-1.5 font-mono text-sm" 
+                        placeholder="e.g. 1064227266775850"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1.5 italic">
+                        Found in Meta Developer Portal → WhatsApp → API Setup. Messages received on this ID will be routed to your inbox.
+                      </p>
+                    </div>
                   </div>
                 )}
                 <Button
                   variant="hero"
                   className="mt-5"
                   disabled={saving === 'business' || loading}
-                  onClick={() => save('business', { companyName, address, gstin, pan, businessType, city })}
+                  onClick={() => save('business', { companyName, address, gstin, pan, businessType, city, whatsappPhoneNumberId })}
                 >
                   {saving === 'business' ? 'Saving...' : 'Save Business Info'}
                 </Button>

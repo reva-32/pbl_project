@@ -1,7 +1,9 @@
 // Central API helper — all authenticated requests flow through here.
-const rawBaseUrl = import.meta.env.VITE_API_URL || 'http://localhost:5000/api';
+const rawBaseUrl = import.meta.env.VITE_API_URL || '';
 // Force consistency — ensure BASE_URL doesn't end with a slash for clean concatenation
-const BASE_URL = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+const urlMatch = rawBaseUrl.endsWith('/') ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
+// In production (single-origin), BASE_URL should be /api. In dev, it might be http://localhost:5000/api
+const BASE_URL = urlMatch || '/api';
 
 function getToken(): string {
   return localStorage.getItem('token') ?? '';

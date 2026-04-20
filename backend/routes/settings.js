@@ -18,10 +18,10 @@ router.get('/', authMiddleware, async (req, res) => {
 // PUT /api/settings/business — update business info
 router.put('/business', authMiddleware, async (req, res) => {
   try {
-    const { companyName, address, gstin, pan, businessType, city } = req.body;
+    const { companyName, address, gstin, pan, businessType, city, whatsappPhoneNumberId } = req.body;
     const user = await User.findByIdAndUpdate(
       req.userId,
-      { companyName, address, gstin, pan, businessType, city },
+      { companyName, address, gstin, pan, businessType, city, whatsappPhoneNumberId },
       { new: true, select: '-password' }
     );
     // Also update localStorage-style data in response

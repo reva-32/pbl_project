@@ -55,10 +55,23 @@ exports.receiveNotification = async (req, res) => {
         // 2. Vector Store (for RAG recall)
         const embedding = await getEmbedding(`${platform} Message from ${senderId}: ${messageText}`);
 
-        // 3. Find the primary user for this demo (assigning to the first user in the DB)
+        // 3. Map to the correct user based on the WhatsApp Phone Number ID
         const User = require('../models/user');
-        let targetUserId = req.body.userId;
+        let targetUserId = null;
+
+        // In Meta webhooks, entry.id is the Phone Number ID of the recipient business
+        const businessPhoneNumberId = entry?.id;
+
+        if (businessPhoneNumberId) {
+            const matchedUser = await User.findOne({ whatsappPhoneNumberId: businessPhoneNumberId });
+            if (matchedUser) {
+                targetUserId = matchedUser._id;
+            }
+        }
+
+        // Fallback for testing/backwards compatibility if no user matched or no metadata found
         if (!targetUserId) {
+            console.log(`⚠️  No user matched for PhoneID: ${businessPhoneNumberId}. Falling back to first user.`);
             const firstUser = await User.findOne();
             targetUserId = firstUser ? firstUser._id : '65f1a2b3c4d5e6f7a8b9c0d1';
         }

@@ -39,9 +39,11 @@ const Auth = () => {
       : { email, password, companyName, ownerName, phone, businessType, city, gstin };
 
     try {
-      const rawBaseUrl = import.meta.env.VITE_API_URL || "http://localhost:5000/api";
-      const BASE_URL = rawBaseUrl.endsWith("/") ? rawBaseUrl.slice(0, -1) : rawBaseUrl;
-      const response = await fetch(`${BASE_URL}/${endpoint}`, {
+      const rootURL = import.meta.env.VITE_API_URL || "";
+      const BASE_URL = rootURL.endsWith("/") ? rootURL.slice(0, -1) : rootURL;
+      // If deployed as single-origin, BASE_URL will be empty, making the path relative (e.g. /api/login)
+      const fetchUrl = BASE_URL ? `${BASE_URL}/${endpoint}` : `/api/${endpoint}`;
+      const response = await fetch(fetchUrl, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(body),

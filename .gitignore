@@ -48,5 +48,8 @@ ehthumbs.db
 *.seed
 
 # Optional caches
+# Caches and temporary files
 /.turbo/
 /.next/
+*.mjs
+/backend/scratch/
