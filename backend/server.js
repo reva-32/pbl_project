@@ -92,31 +92,53 @@ app.get('/health', (_req, res) => res.json({
 
 // ── Production Frontend Serving ───────────────────────────────────────────────
 if (process.env.NODE_ENV === 'production') {
-  const frontendDistPath = path.join(__dirname, '..', 'frontend', 'dist');
-  console.log(`📂 Production Mode: Serving frontend from ${frontendDistPath}`);
+  // Try several potential paths for the dist folder
+  const possiblePaths = [
+    path.join(__dirname, '..', 'frontend', 'dist'), // Relative to backend/server.js
+    path.join(process.cwd(), 'frontend', 'dist'),   // Relative to CWD
+    path.join(process.cwd(), 'dist'),             // Root dist
+  ];
+
+  let frontendDistPath = possiblePaths[0]; // Default
   
-  if (fs.existsSync(frontendDistPath)) {
-    console.log('✅ frontend/dist folder found!');
+  console.log('🔍 Searching for frontend/dist...');
+  for (const p of possiblePaths) {
+    if (fs.existsSync(p)) {
+      frontendDistPath = p;
+      console.log(`✅ FOUND frontend/dist at: ${p}`);
+      break;
+    } else {
+      console.log(`❌ Not found at: ${p}`);
+    }
+  }
+  
+  if (!fs.existsSync(frontendDistPath)) {
+    console.error('⚠️ CRITICAL: Could not find any frontend/dist folder.');
+    console.log(`📁 Current Directory: ${process.cwd()}`);
+    try {
+      console.log(`📁 Root Contents: ${fs.readdirSync(process.cwd()).join(', ')}`);
+    } catch (e) {}
+  } else {
     const files = fs.readdirSync(frontendDistPath);
     console.log(`📝 Files in dist: ${files.join(', ')}`);
-  } else {
-    console.error('❌ ERROR: frontend/dist folder NOT FOUND! Check build logs.');
-    // Check root directory to help debug
-    console.log(`📁 Root Dir contents: ${fs.readdirSync(path.join(__dirname, '..')).join(', ')}`);
   }
 
   app.use(express.static(frontendDistPath));
 
   app.get('*', (req, res) => {
-    // ONLY serve index.html if it's not a request for a specific file (contains no dot)
-    // or if it explicitly starts with one of our main app routes.
     if (!req.path.includes('.') || req.path.startsWith('/dashboard') || req.path === '/') {
-      res.sendFile(path.join(frontendDistPath, 'index.html'));
+      const indexPath = path.join(frontendDistPath, 'index.html');
+      if (fs.existsSync(indexPath)) {
+        res.sendFile(indexPath);
+      } else {
+        res.status(404).send(`index.html not found in dist. Search path: ${indexPath}`);
+      }
     } else {
       res.status(404).send('Asset not found');
     }
   });
-} else {
+}
+ else {
   // Simple landing page for dev mode
   app.get('/', (_req, res) => res.send('MSME-360 API Server is running. Access endpoints via /api/...'));
 }
