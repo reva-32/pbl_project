@@ -2,7 +2,7 @@
 const Tesseract = require('tesseract.js');
 const fs = require('fs');
 const path = require('path');
-const poppler = require('pdf-poppler'); // <--- NEW LIBRARY
+const pdfConvert = require('pdf-img-convert'); // <--- CROSS-PLATFORM
 const { ingestData } = require('./ingestController'); 
 
 // Mock Request/Response for internal call (Kept exactly as is)
@@ -41,19 +41,12 @@ exports.processImage = async (req, res) => {
         if (fileExt === '.pdf') {
             console.log("📄 PDF Detected. Converting to image for OCR...");
             
-            // Output settings for poppler
-            const opts = {
-                format: 'png',
-                out_dir: path.dirname(filePath),
-                out_prefix: path.basename(filePath, path.extname(filePath)),
-                page: 1 // Only scan the first page for speed
-            };
-
-            // Convert PDF -> PNG
-            await poppler.convert(filePath, opts);
+            // Convert first page to PNG Buffer
+            const pdfData = await pdfConvert.convert(filePath, { page_numbers: [1] });
+            const pngPath = path.join(path.dirname(filePath), `${path.basename(filePath, '.pdf')}-1.png`);
             
-            // Construct the expected output path (Poppler adds '-1' to the filename)
-            const pngPath = path.join(opts.out_dir, `${opts.out_prefix}-1.png`);
+            // Save buffer to temporary PNG
+            fs.writeFileSync(pngPath, pdfData[0]);
             
             if (fs.existsSync(pngPath)) {
                 console.log("📸 Image conversion successful. Running Tesseract...");
