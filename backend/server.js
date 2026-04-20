@@ -1,6 +1,17 @@
 require('dotenv').config();
 console.log('🚀 SYSTEM BOOT: Starting MSME-360 API Server...');
 
+// ── Emergency Error Catching (Prevent silent crashes) ────────────────────────
+process.on('uncaughtException', (err) => {
+  console.error('🔥 UNCAUGHT EXCEPTION:', err.message);
+  console.error(err.stack);
+  // In production, we don't want to exit(1) immediately for every error
+});
+
+process.on('unhandledRejection', (reason, promise) => {
+  console.error('🔥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
+});
+
 const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'GROQ_API_KEY'];
 requiredEnv.forEach(key => {
   if (!process.env[key]) {
