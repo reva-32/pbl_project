@@ -76,14 +76,12 @@ exports.receiveNotification = async (req, res) => {
         console.log(`- Phone Number ID (metadata): ${phoneNumberId}`);
 
         if (phoneNumberId || wabaId) {
-            // Try matching against Phone Number ID first (most common for WhatsApp users)
-            // then fall back to WABA ID (common for Messenger/Legacy)
-            const matchedUser = await User.findOne({ 
-                $or: [
-                    { whatsappPhoneNumberId: phoneNumberId },
-                    { whatsappPhoneNumberId: wabaId }
-                ].filter(id => id != null) // Keep it clean for the query
-            });
+            // Build query dynamically to exclude null/undefined IDs
+            const orQuery = [];
+            if (phoneNumberId) orQuery.push({ whatsappPhoneNumberId: phoneNumberId });
+            if (wabaId) orQuery.push({ whatsappPhoneNumberId: wabaId });
+
+            const matchedUser = await User.findOne({ $or: orQuery });
 
             if (matchedUser) {
                 console.log(`✅ Matched User: ${matchedUser.email} [${matchedUser._id}]`);
