@@ -43,7 +43,15 @@ exports.receiveNotification = async (req, res) => {
 
         const senderId = messageObj.from || messageObj.sender?.id || 'Unknown Sender';
         const messageText = messageObj.text?.body || messageObj.message?.text || '';
-        const platform = entry?.id ? (entry.id.includes('whatsapp') ? 'WhatsApp' : 'Meta') : 'Meta';
+        
+        // Better platform detection
+        let platform = 'Meta';
+        if (value?.messaging_product === 'whatsapp' || entry?.id?.includes('whatsapp')) {
+            platform = 'WhatsApp';
+        } else if (entry?.messaging) {
+            // Messenger / Instagram usually have 'messaging' array
+            platform = 'Messenger';
+        }
 
         if (!messageText) return res.status(200).send('EVENT_RECEIVED');
 
@@ -55,24 +63,38 @@ exports.receiveNotification = async (req, res) => {
         // 2. Vector Store (for RAG recall)
         const embedding = await getEmbedding(`${platform} Message from ${senderId}: ${messageText}`);
 
-        // 3. Map to the correct user based on the WhatsApp Phone Number ID
+        // 3. Map to the correct user
         const User = require('../models/user');
         let targetUserId = null;
 
-        // In Meta webhooks, entry.id is the Phone Number ID of the recipient business
-        const businessPhoneNumberId = entry?.id;
+        // Extract potential IDs for matching from Meta payload
+        const wabaId = entry?.id; // WhatsApp Business Account ID
+        const phoneNumberId = value?.metadata?.phone_number_id; // Specific Phone Number ID
 
-        if (businessPhoneNumberId) {
-            const matchedUser = await User.findOne({ whatsappPhoneNumberId: businessPhoneNumberId });
+        console.log(`🔍 Attempting to match user for Platform: ${platform}`);
+        console.log(`- WABA ID (entry.id): ${wabaId}`);
+        console.log(`- Phone Number ID (metadata): ${phoneNumberId}`);
+
+        if (phoneNumberId || wabaId) {
+            // Try matching against Phone Number ID first (most common for WhatsApp users)
+            // then fall back to WABA ID (common for Messenger/Legacy)
+            const matchedUser = await User.findOne({ 
+                $or: [
+                    { whatsappPhoneNumberId: phoneNumberId },
+                    { whatsappPhoneNumberId: wabaId }
+                ]
+            }).filter(Boolean); // Filter out nulls in $or if needed, but MongoDB handles it
+
             if (matchedUser) {
+                console.log(`✅ Matched User: ${matchedUser.email} [${matchedUser._id}]`);
                 targetUserId = matchedUser._id;
             }
         }
 
-        // Fallback for testing/backwards compatibility if no user matched or no metadata found
+        // Fallback for testing/backwards compatibility if no user matched
         if (!targetUserId) {
-            console.log(`⚠️  No user matched for PhoneID: ${businessPhoneNumberId}. Falling back to first user.`);
-            const firstUser = await User.findOne();
+            console.warn(`⚠️  No user matched. Falling back to first user in database.`);
+            const firstUser = await User.findOne().sort({ createdAt: 1 });
             targetUserId = firstUser ? firstUser._id : '65f1a2b3c4d5e6f7a8b9c0d1';
         }
 
