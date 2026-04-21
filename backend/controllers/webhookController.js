@@ -82,8 +82,8 @@ exports.receiveNotification = async (req, res) => {
                 $or: [
                     { whatsappPhoneNumberId: phoneNumberId },
                     { whatsappPhoneNumberId: wabaId }
-                ]
-            }).filter(Boolean); // Filter out nulls in $or if needed, but MongoDB handles it
+                ].filter(id => id != null) // Keep it clean for the query
+            });
 
             if (matchedUser) {
                 console.log(`✅ Matched User: ${matchedUser.email} [${matchedUser._id}]`);
