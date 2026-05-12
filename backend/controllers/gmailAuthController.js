@@ -77,7 +77,7 @@ exports.authCallback = async (req, res) => {
     console.log(`✅ Gmail Watch setup successful for user ${user.email}. History ID: ${watchRes.data.historyId}`);
 
     // Redirect back to frontend integrations
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';
     res.redirect(`${frontendUrl}/integrations?gmail_connected=true`);
 
   } catch (error) {
