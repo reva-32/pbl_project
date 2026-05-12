@@ -2,7 +2,7 @@
 const Tesseract = require('tesseract.js');
 const fs = require('fs');
 const path = require('path');
-const pdfConvert = require('pdf-img-convert'); // <--- CROSS-PLATFORM
+const pdfParse = require('pdf-parse');
 const { ingestData } = require('./ingestController'); 
 
 // Mock Request/Response for internal call (Kept exactly as is)
@@ -39,24 +39,16 @@ exports.processImage = async (req, res) => {
 
         // --- BRANCH A: PDF HANDLING ---
         if (fileExt === '.pdf') {
-            console.log("📄 PDF Detected. Converting to image for OCR...");
+            console.log("📄 PDF Detected. Parsing text directly...");
             
-            // Convert first page to PNG Buffer
-            const pdfData = await pdfConvert.convert(filePath, { page_numbers: [1] });
-            const pngPath = path.join(path.dirname(filePath), `${path.basename(filePath, '.pdf')}-1.png`);
+            const dataBuffer = fs.readFileSync(filePath);
+            const data = await pdfParse(dataBuffer);
             
-            // Save buffer to temporary PNG
-            fs.writeFileSync(pngPath, pdfData[0]);
-            
-            if (fs.existsSync(pngPath)) {
-                console.log("📸 Image conversion successful. Running Tesseract...");
-                const { data: { text } } = await Tesseract.recognize(pngPath, 'eng');
-                textToIngest = text;
-
-                // Cleanup the generated PNG immediately
-                fs.unlinkSync(pngPath); 
+            if (data && data.text) {
+                console.log("📄 PDF parsing successful.");
+                textToIngest = data.text;
             } else {
-                throw new Error("PDF Conversion failed: Output image not found.");
+                throw new Error("PDF Parsing failed: No text extracted.");
             }
         } 
         // --- BRANCH B: IMAGE HANDLING (Standard) ---

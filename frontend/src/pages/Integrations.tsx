@@ -1,28 +1,12 @@
+import { useEffect, useState } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { MessageSquare, Mail, Lock, Sparkles } from "lucide-react";
+import { MessageSquare, Mail, Lock, Sparkles, Loader2 } from "lucide-react";
 import { motion } from "framer-motion";
-
-const liveIntegrations = [
-  {
-    name: "WhatsApp Business API",
-    desc: "Customer messages, AI classification, and outbound replies.",
-    icon: MessageSquare,
-    connected: true,
-    accent: "text-emerald-700",
-    iconBg: "bg-emerald-500/10",
-  },
-  {
-    name: "Gmail",
-    desc: "Sync email context and send professional invoices from your workspace.",
-    icon: Mail,
-    connected: false,
-    accent: "text-primary",
-    iconBg: "bg-primary/10",
-  },
-];
+import { apiFetch } from "@/lib/api";
+import { toast } from "sonner";
 
 const comingSoon = [
   { name: "Facebook Messenger", desc: "Centralize Meta page conversations." },
@@ -31,6 +15,74 @@ const comingSoon = [
 ];
 
 const Integrations = () => {
+  const [gmailConnected, setGmailConnected] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [connectingGmail, setConnectingGmail] = useState(false);
+
+  useEffect(() => {
+    // Check if we just returned from successful Gmail Auth
+    const params = new URLSearchParams(window.location.search);
+    if (params.get("gmail_connected") === "true") {
+      toast.success("Gmail connected successfully!");
+      // Remove query param without reloading
+      window.history.replaceState({}, document.title, window.location.pathname);
+      setGmailConnected(true);
+    }
+
+    // Fetch user settings to see if Gmail is already connected
+    const fetchStatus = async () => {
+      const { data } = await apiFetch<any>("/settings");
+      if (data?.user?.googleRefreshToken) {
+        setGmailConnected(true);
+      }
+      setLoading(false);
+    };
+    fetchStatus();
+  }, []);
+
+  const handleConnectGmail = async () => {
+    setConnectingGmail(true);
+    const { data, error } = await apiFetch<{ url: string }>("/webhook/gmail/auth/url");
+    if (error || !data?.url) {
+      toast.error(error || "Failed to initiate Gmail connection");
+      setConnectingGmail(false);
+      return;
+    }
+    // Redirect to Google Consent screen
+    window.location.href = data.url;
+  };
+
+  const liveIntegrations = [
+    {
+      name: "WhatsApp Business API",
+      desc: "Customer messages, AI classification, and outbound replies.",
+      icon: MessageSquare,
+      connected: true,
+      accent: "text-emerald-700",
+      iconBg: "bg-emerald-500/10",
+    },
+    {
+      name: "Gmail",
+      desc: "Sync email context and send professional invoices from your workspace.",
+      icon: Mail,
+      connected: gmailConnected,
+      accent: gmailConnected ? "text-primary" : "text-slate-500",
+      iconBg: gmailConnected ? "bg-primary/10" : "bg-slate-100",
+      action: handleConnectGmail,
+      loading: connectingGmail
+    },
+  ];
+
+  if (loading) {
+    return (
+      <AppLayout title="Integrations">
+        <div className="flex justify-center items-center h-64">
+          <Loader2 className="h-8 w-8 animate-spin text-primary" />
+        </div>
+      </AppLayout>
+    );
+  }
+
   return (
     <AppLayout title="Integrations">
       <motion.div
@@ -95,15 +147,12 @@ const Integrations = () => {
                       variant={item.connected ? "outline" : "default"}
                       size="sm"
                       className="rounded-xl"
-                      disabled={!item.connected && item.name === "Gmail"}
+                      onClick={!item.connected && item.action ? item.action : undefined}
+                      disabled={item.loading}
                     >
+                      {item.loading ? <Loader2 className="h-4 w-4 animate-spin mr-1" /> : null}
                       {item.connected ? "Manage" : "Connect"}
                     </Button>
-                    {!item.connected && (
-                      <p className="text-xs text-muted-foreground self-center">
-                        Wire up Gmail in your deployment when backend support is enabled.
-                      </p>
-                    )}
                   </div>
                 </GlassCard>
               </motion.div>

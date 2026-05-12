@@ -38,6 +38,12 @@ const UserSchema = new mongoose.Schema({
   twoFactorEnabled: { type: Boolean, default: false },
   loginAlerts:      { type: Boolean, default: true },
 
+  // ── Gmail Webhooks (OAuth) ──
+  googleAccessToken:  { type: String, default: null },
+  googleRefreshToken: { type: String, default: null },
+  googleTokenExpiry:  { type: Number, default: null },
+  googleEmail:        { type: String, default: null },
+
 }, { timestamps: true });
 
 module.exports = mongoose.model('User', UserSchema);
