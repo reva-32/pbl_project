@@ -16,10 +16,29 @@ exports.searchEvents = async (req, res) => {
         console.log(`🤔 User asks: "${query}"`);
 
         // ── Fetch User Profile for Personalization ───────────────────────────
-        const profile = await User.findById(req.userId).select('ownerName companyName businessType');
+        const profile = await User.findById(req.userId).select(
+            'ownerName companyName businessType phone email city gstin address pan currency taxRate invoicePrefix paymentTerms',
+        );
         const ownerName = profile?.ownerName || 'Business Owner';
         const companyName = profile?.companyName || 'My Business';
         const businessType = profile?.businessType || 'MSME';
+
+        const invoiceDefaults = {
+            businessName: companyName,
+            businessContact: [profile?.phone, profile?.email].filter(Boolean).join(' · ') || 'Contact on file',
+            ownerContact: ownerName + (profile?.email ? ` · ${profile.email}` : ''),
+            clientName: 'Valued Customer',
+            amount: '0',
+            detailedDescription: 'Professional services rendered as per agreement.',
+            sellerGstin: profile?.gstin || '',
+            sellerAddress: profile?.address || '',
+            sellerCity: profile?.city || '',
+            sellerPan: profile?.pan || '',
+            currency: (profile?.currency || 'inr').toLowerCase(),
+            taxRate: typeof profile?.taxRate === 'number' ? profile.taxRate : 18,
+            invoicePrefix: profile?.invoicePrefix || 'INV-',
+            paymentTerms: profile?.paymentTerms || 'net30',
+        };
 
         const queryVector = await getEmbedding(query);
         const mongoose = require('mongoose');
@@ -47,9 +66,9 @@ exports.searchEvents = async (req, res) => {
         INTERNAL RECORDS: ${internalContext}
         
         INSTRUCTIONS:
-        1. **TASK: INVOICE**: If user wants an invoice, output JSON ONLY:
-           { "action": "generate_invoice", "data": { "businessName": "${companyName}", "businessContact": "Contact", "ownerContact": "${ownerName}", "clientName": "Client", "amount": "100", "detailedDescription": "Desc" } }
-           (Extract specific details from the query. Use "${companyName}" as the default businessName if not specified).
+        1. **TASK: INVOICE**: If user wants an invoice, output JSON ONLY with this shape (fill values from the user message; seller GST/address may be empty strings to use profile defaults):
+           { "action": "generate_invoice", "data": { "businessName": "", "businessContact": "", "ownerContact": "", "clientName": "", "amount": "", "detailedDescription": "", "sellerGstin": "", "sellerAddress": "", "sellerCity": "", "sellerPan": "", "currency": "inr", "taxRate": 18, "invoicePrefix": "INV-", "paymentTerms": "net30" } }
+           Use "${companyName}" as businessName when not specified. **amount** = **grand total inclusive of GST** in INR (numeric string, e.g. "11800").
         
         2. **TASK: FINANCIAL**: Output JSON ONLY:
            { "action": "financial_projection", "data": { "currentRevenue": "100", "currentExpenses": "50", "revenueGrowth": "20", "expenseGrowth": "10" } }
@@ -80,10 +99,36 @@ exports.searchEvents = async (req, res) => {
 
                 if (command.action === 'generate_invoice') {
                     console.log('⚡ Action: Invoice');
+                    const raw = command.data && typeof command.data === 'object' ? command.data : {};
                     const invoiceData = {
-                        ...command.data,
+                        ...invoiceDefaults,
+                        ...raw,
                         signaturePath: req.file ? req.file.path : null,
                     };
+                    // Fill blanks / placeholders from AI with profile defaults
+                    const fillIfEmpty = (key, fallback) => {
+                        const v = invoiceData[key];
+                        if (v === undefined || v === null || String(v).trim() === '' || String(v).toLowerCase() === 'contact') {
+                            invoiceData[key] = fallback;
+                        }
+                    };
+                    fillIfEmpty('businessName', invoiceDefaults.businessName);
+                    fillIfEmpty('businessContact', invoiceDefaults.businessContact);
+                    fillIfEmpty('ownerContact', invoiceDefaults.ownerContact);
+                    fillIfEmpty('clientName', invoiceDefaults.clientName);
+                    fillIfEmpty('amount', invoiceDefaults.amount);
+                    fillIfEmpty('detailedDescription', invoiceDefaults.detailedDescription);
+                    fillIfEmpty('sellerGstin', invoiceDefaults.sellerGstin);
+                    fillIfEmpty('sellerAddress', invoiceDefaults.sellerAddress);
+                    fillIfEmpty('sellerCity', invoiceDefaults.sellerCity);
+                    fillIfEmpty('sellerPan', invoiceDefaults.sellerPan);
+                    if (!invoiceData.currency) invoiceData.currency = invoiceDefaults.currency;
+                    if (invoiceData.taxRate === undefined || invoiceData.taxRate === null || invoiceData.taxRate === '') {
+                        invoiceData.taxRate = invoiceDefaults.taxRate;
+                    }
+                    if (!invoiceData.invoicePrefix) invoiceData.invoicePrefix = invoiceDefaults.invoicePrefix;
+                    if (!invoiceData.paymentTerms) invoiceData.paymentTerms = invoiceDefaults.paymentTerms;
+
                     const pdfResult = await createInvoicePDF(invoiceData);
 
                     if (pdfResult.success) {

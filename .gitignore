@@ -53,3 +53,5 @@ ehthumbs.db
 /.next/
 *.mjs
 /backend/scratch/
+
+tmp/
