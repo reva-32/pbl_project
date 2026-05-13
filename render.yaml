@@ -1,0 +1,22 @@
+services:
+  - type: web
+    name: pbl_project-7
+    runtime: node
+    buildCommand: npm install && cd frontend && npm install && npm run build && cd ../backend && npm install
+    startCommand: cd backend && npm start
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 10000
+      # VITE_API_URL must be empty string so the frontend uses relative /api calls
+      # (frontend is served by the same Express server in production)
+      - key: VITE_API_URL
+        value: ""
+      # Add your secrets below or set them in the Render dashboard:
+      # - key: MONGO_URI
+      #   sync: false
+      # - key: JWT_SECRET
+      #   sync: false
+      # - key: GROQ_API_KEY
+      #   sync: false

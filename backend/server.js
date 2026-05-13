@@ -155,8 +155,8 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 // ── Server Start ──────────────────────────────────────────────────────────────
-app.listen(PORT, () => {
-  console.log(`🚀 MSME-360 API running → http://localhost:${PORT}`);
+app.listen(PORT, '0.0.0.0', () => {
+  console.log(`🚀 MSME-360 API running → http://0.0.0.0:${PORT}`);
   
   // ── MongoDB Connection (Connect after port is open) ──────────────────────────
   console.log('📡 Connecting to MongoDB Atlas...');
