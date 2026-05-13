@@ -90,30 +90,44 @@ exports.processImage = async (req, res) => {
                     data = await (instance.parse ? instance.parse() : instance);
                 }
                 
-                // --- BRUTE FORCE TEXT EXTRACTION ---
+                // --- DEEP INSPECTION TEXT EXTRACTION ---
                 if (data) {
                     if (typeof data === 'string') textToIngest = data;
                     else if (data.text) textToIngest = data.text;
                     else if (data.content) textToIngest = data.content;
                     else if (data.data) textToIngest = data.data;
                     else if (data.textContent) textToIngest = data.textContent;
-                    else if (Array.isArray(data)) textToIngest = data.join(' ');
+                    
+                    // Brute force page search (some variants store text in pages)
+                    if (!textToIngest && data.pages && Array.isArray(data.pages)) {
+                        console.log("📄 [PDF] Searching through " + data.pages.length + " pages...");
+                        textToIngest = data.pages.map(page => {
+                            if (typeof page === 'string') return page;
+                            if (page.text) return page.text;
+                            if (page.content && Array.isArray(page.content)) {
+                                return page.content.map(item => item.str || item.text || item).join(' ');
+                            }
+                            return '';
+                        }).join('\n');
+                    }
+                    
+                    if (Array.isArray(data) && !textToIngest) textToIngest = data.join(' ');
                 }
 
                 if (!textToIngest || textToIngest.trim().length < 5) {
-                    console.warn("⚠️ [PDF] Extraction returned empty. Attempting raw buffer string recovery...");
-                    // Grab chunks of legible strings from the raw PDF stream
-                    const rawStrings = dataBuffer.toString('utf-8').match(/[^\x00-\x1F\x7F-\x9F]{4,}/g);
-                    if (rawStrings && rawStrings.length > 10) {
-                        textToIngest = "[RAW_PDF_STREAM]: " + rawStrings.slice(0, 1000).join(' ');
+                    console.warn("⚠️ [PDF] Clean extraction failed. Attempting RAW recovery...");
+                    // Regex for extracting literal strings from PDF (Tj or Td markers)
+                    const rawStrings = dataBuffer.toString('utf-8').match(/\(([^)]+)\)\s*Tj/g);
+                    if (rawStrings && rawStrings.length > 5) {
+                        textToIngest = rawStrings.map(s => s.slice(1, -4)).join(' ');
                     }
                 }
 
                 if (!textToIngest || textToIngest.trim().length < 5) {
-                    throw new Error("This PDF format is unsupported. Please upload a clear image (JPG/PNG) or a text-based PDF.");
+                    throw new Error("Could not extract text from this PDF. Please try a different PDF or an image version.");
                 }
 
-                console.log("📄 [PDF] Extraction successful (Format: " + (textToIngest.startsWith("[RAW") ? "RAW" : "CLEAN") + ")");
+                console.log("📄 [PDF] Extraction successful. Length:", textToIngest.length);
             } catch (pdfErr) {
                 console.error("❌ [PDF] Parse Error:", pdfErr.message);
                 throw pdfErr;
