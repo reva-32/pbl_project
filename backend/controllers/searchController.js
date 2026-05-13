@@ -212,7 +212,8 @@ exports.searchEvents = async (req, res) => {
                     return res.status(200).json({ answer: modelResult.text, sources: results });
                 }
             } catch (err) {
-                console.error('Action parse error:', err);
+                console.error('❌ Action execution failed:', err);
+                return res.status(500).json({ error: `Action failed: ${err.message}` });
             }
         }
 
