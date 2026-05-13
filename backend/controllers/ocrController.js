@@ -34,6 +34,7 @@ const internalIngest = async (text, type, filename, userId, extraMetadata = {}) 
 exports.processImage = async (req, res) => {
     try {
         if (!req.file) {
+            console.error("❌ OCR: No file uploaded");
             return res.status(400).json({ error: "No file uploaded" });
         }
 
@@ -41,59 +42,57 @@ exports.processImage = async (req, res) => {
         const fileExt = path.extname(req.file.originalname).toLowerCase();
         let textToIngest = "";
 
-        console.log(`👁️ Scanning File: ${req.file.originalname} (${fileExt})...`);
+        console.log(`👁️ [OCR START] File: ${req.file.originalname} (${fileExt})`);
 
         // --- BRANCH A: PDF HANDLING ---
         if (fileExt === '.pdf') {
             try {
-                console.log("📄 PDF Detected. Parsing text directly...");
+                console.log("📄 [PDF] Reading buffer...");
                 const dataBuffer = fs.readFileSync(filePath);
+                console.log("📄 [PDF] Parsing text...");
                 const data = await pdfParse(dataBuffer);
                 
                 if (data && data.text && data.text.trim().length > 0) {
-                    console.log("📄 PDF parsing successful.");
+                    console.log("📄 [PDF] Parsing successful. Text length:", data.text.length);
                     textToIngest = data.text;
                 } else {
-                    console.warn("⚠️ PDF Parsing returned no text. This might be a scanned PDF (image-based).");
-                    // In a production app, we'd use a tool like pdf-img-convert + Tesseract here.
-                    // For now, we'll inform the user.
-                    throw new Error("This PDF seems to be an image (scanned document). Please upload a text-based PDF or an image (JPG/PNG) for OCR.");
+                    console.warn("⚠️ [PDF] No text extracted. Likely an image PDF.");
+                    throw new Error("This PDF seems to be an image (scanned document). Please upload a text-based PDF or a clear image (JPG/PNG).");
                 }
             } catch (pdfErr) {
-                console.error("❌ PDF Parse Error:", pdfErr.message);
+                console.error("❌ [PDF] Parse Error:", pdfErr.message);
                 throw pdfErr;
             }
         } 
-        // --- BRANCH B: IMAGE HANDLING (Standard) ---
+        // --- BRANCH B: IMAGE HANDLING ---
         else {
-            const { data: { text } } = await Tesseract.recognize(filePath, 'eng');
-            textToIngest = text;
+            try {
+                console.log("🖼️ [IMG] Running Tesseract OCR...");
+                const { data: { text } } = await Tesseract.recognize(filePath, 'eng');
+                textToIngest = text;
+                console.log("🖼️ [IMG] OCR successful. Text length:", text?.length || 0);
+            } catch (tessErr) {
+                console.error("❌ [IMG] Tesseract Error:", tessErr.message);
+                throw new Error(`OCR Engine failed: ${tessErr.message}`);
+            }
         }
 
         if (!textToIngest || textToIngest.trim().length < 5) {
-            throw new Error("Could not extract enough text from the document. Please ensure the image is clear.");
+            throw new Error("Extracted text is too short. Please ensure the document is readable.");
         }
 
-        // --- COMMON PROCESSING ---
         // Clean up the text
         const cleanedText = textToIngest.replace(/\n\s*\n/g, '\n').trim();
-        console.log("📝 Extracted Text Preview:", cleanedText.substring(0, 50) + "...");
 
         // AI Analysis using Groq
-        console.log("🤖 Analyzing document with AI...");
+        console.log("🤖 [Groq] Analyzing document...");
         const aiPrompt = `
-        You are a professional business document analyzer. 
-        Analyze the following text extracted from a document via OCR.
-        
-        TEXT:
-        ${cleanedText.substring(0, 4000)}
-        
-        OUTPUT:
-        Return a JSON object with two keys:
-        1. "analysis": A highly structured markdown summary including Document Type, Key Entities, Financial Summary, and a Brief Description.
-        2. "metadata": An object with "docType" (one of: INVOICE, RECEIPT, GST_RETURN, CONTRACT, DOCUMENT), "clientName" (string or null), "totalAmount" (numeric string or null).
-        
-        Return ONLY the JSON.
+        Analyze this OCR text. Return a JSON object:
+        {
+          "analysis": "Markdown summary (Doc Type, Entities, Financials, Description)",
+          "metadata": { "docType": "INVOICE|RECEIPT|GST_RETURN|CONTRACT|DOCUMENT", "clientName": "string", "totalAmount": "number" }
+        }
+        TEXT: ${cleanedText.substring(0, 4000)}
         `;
 
         let analysis = "No analysis available.";
@@ -111,41 +110,40 @@ exports.processImage = async (req, res) => {
             analysis = result.analysis || "AI analysis failed.";
             extractedMetadata = result.metadata || {};
             docType = extractedMetadata.docType || 'DOCUMENT';
+            console.log("🤖 [Groq] Analysis successful. Detected Type:", docType);
         } catch (groqErr) {
-            console.error("⚠️ Groq Analysis failed:", groqErr.message);
-            // Fallback basic detection
+            console.error("⚠️ [Groq] Error:", groqErr.message);
+            // Minimal fallback
             const lowerText = cleanedText.toLowerCase();
             if (lowerText.includes('invoice')) docType = 'INVOICE';
             else if (lowerText.includes('receipt')) docType = 'RECEIPT';
         }
 
-        // Trigger the ingestion to Memory with better metadata
+        // Ingest to Memory
+        console.log("📥 [INGEST] Memorizing document...");
         await internalIngest(cleanedText, docType, req.file.originalname, req.userId, extractedMetadata);
 
-        // Cleanup the original uploaded file
-        if (fs.existsSync(filePath)) {
-            fs.unlinkSync(filePath);
-        }
+        // Cleanup
+        if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
+        console.log("✅ [OCR COMPLETE]");
         res.status(200).json({
-            message: "Document scanned and analyzed successfully.",
+            message: "Success",
             extractedText: cleanedText,
             detectedType: docType,
             analysis: analysis
         });
 
     } catch (error) {
-        console.error("❌ OCR Error:", error);
+        console.error("❌ [OCR MASTER ERROR]:", error.message);
         
-        // Attempt cleanup even on error
         if (req.file && req.file.path && fs.existsSync(req.file.path)) {
             fs.unlinkSync(req.file.path);
         }
 
         res.status(500).json({ 
-            error: "Failed to process document", 
-            details: error.message,
-            tip: error.message.includes("scanned document") ? "Try converting the PDF to an image or using a digital PDF." : "Ensure the file is not corrupted."
+            error: error.message || "Failed to process document",
+            details: error.stack
         });
     }
 };
