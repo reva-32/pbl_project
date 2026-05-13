@@ -67,37 +67,51 @@ exports.processImage = async (req, res) => {
 
                 let data;
                 try {
-                    // Pattern 1: Direct function call (standard pdf-parse)
-                    data = await parseFunc(dataBuffer);
-                } catch (err) {
-                    try {
-                        // Pattern 2: Class instantiation (some forks)
+                    // Pattern 1: Advanced pagerender (handles some tricky forks)
+                    const options = {
+                        pagerender: (pageData) => {
+                            return pageData.getTextContent()
+                                .then(textContent => {
+                                    return textContent.items.map(item => item.str).join(' ');
+                                });
+                        }
+                    };
+
+                    // Try direct function call with options
+                    if (typeof parseFunc === 'function') {
+                        data = await parseFunc(dataBuffer, options);
+                    } else {
                         const instance = new parseFunc(dataBuffer);
-                        data = await (instance.parse ? instance.parse() : instance);
-                    } catch (err2) {
-                        // Pattern 3: Empty constructor then .parse(buffer)
-                        const instance = new parseFunc();
-                        data = await instance.parse(dataBuffer);
+                        data = await (instance.parse ? instance.parse(options) : instance);
                     }
+                } catch (err) {
+                    console.error("🔄 [PDF] Advanced parse failed, falling back to basic...");
+                    const instance = new parseFunc(dataBuffer);
+                    data = await (instance.parse ? instance.parse() : instance);
                 }
                 
                 // --- BRUTE FORCE TEXT EXTRACTION ---
-                // We try every possible property that might hold the text
                 if (data) {
                     if (typeof data === 'string') textToIngest = data;
                     else if (data.text) textToIngest = data.text;
                     else if (data.content) textToIngest = data.content;
                     else if (data.data) textToIngest = data.data;
                     else if (data.textContent) textToIngest = data.textContent;
-                    // If it's an array, join it
                     else if (Array.isArray(data)) textToIngest = data.join(' ');
                 }
 
                 if (textToIngest && textToIngest.trim().length > 5) {
-                    console.log("📄 [PDF] Brute-force extraction successful. Length:", textToIngest.length);
+                    console.log("📄 [PDF] Extraction successful. Length:", textToIngest.length);
                 } else {
-                    console.warn("⚠️ [PDF] Extraction returned empty or invalid data:", data);
-                    throw new Error("This PDF format is currently unsupported for direct text reading. Please upload an image (JPG/PNG) or a standard digital PDF.");
+                    console.warn("⚠️ [PDF] Extraction returned empty. Attempting raw string buffer match...");
+                    // Last resort: raw string extraction (best effort)
+                    const rawStrings = dataBuffer.toString('utf-8').match(/[\w\s]{4,}/g);
+                    if (rawStrings && rawStrings.length > 20) {
+                        textToIngest = rawStrings.join(' ');
+                        console.log("📄 [PDF] Raw buffer match successful.");
+                    } else {
+                        throw new Error("This PDF format is currently unsupported for direct text reading. Please upload an image version.");
+                    }
                 }
             } catch (pdfErr) {
                 console.error("❌ [PDF] Parse Error:", pdfErr.message);
