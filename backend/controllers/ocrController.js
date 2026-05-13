@@ -67,13 +67,15 @@ exports.processImage = async (req, res) => {
 
                 let data;
                 try {
-                    // Pattern 1: Advanced pagerender (handles some tricky forks)
+                    // Pattern 1: Advanced async pagerender
                     const options = {
-                        pagerender: (pageData) => {
-                            return pageData.getTextContent()
-                                .then(textContent => {
-                                    return textContent.items.map(item => item.str).join(' ');
-                                });
+                        pagerender: async (pageData) => {
+                            try {
+                                const textContent = await pageData.getTextContent();
+                                return textContent.items.map(item => item.str).join(' ');
+                            } catch (e) {
+                                return '';
+                            }
                         }
                     };
 
