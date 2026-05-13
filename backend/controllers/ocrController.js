@@ -59,38 +59,38 @@ exports.processImage = async (req, res) => {
                     parseFunc = pdf.PDFParse;
                 } else if (pdf && typeof pdf.default === 'function') {
                     parseFunc = pdf.default;
-                } else if (pdf && typeof pdf.pdfParse === 'function') {
-                    parseFunc = pdf.pdfParse;
-                } else if (pdf && typeof pdf.parse === 'function') {
-                    parseFunc = pdf.parse;
                 }
 
                 if (!parseFunc) {
-                    const keys = pdf ? Object.keys(pdf).join(', ') : 'null';
-                    console.error("❌ [PDF] Engine mismatch. Type:", typeof pdf, "Keys:", keys);
-                    throw new Error(`PDF engine initialization failed. Found keys: ${keys}. Please use an image version.`);
+                    throw new Error("PDF engine not found. Please use an image version.");
                 }
 
                 let data;
                 try {
-                    // Try direct call first
+                    // Pattern 1: Direct function call (standard pdf-parse)
                     data = await parseFunc(dataBuffer);
                 } catch (err) {
-                    // If it's a class constructor, try with 'new'
-                    if (err.message.includes("constructor") || err.message.includes("without 'new'")) {
-                        console.log("🔄 [PDF] Attempting class constructor invocation...");
-                        data = await (new parseFunc(dataBuffer));
-                    } else {
-                        throw err;
+                    try {
+                        // Pattern 2: Class instantiation (some forks)
+                        const instance = new parseFunc(dataBuffer);
+                        data = await (instance.parse ? instance.parse() : instance);
+                    } catch (err2) {
+                        // Pattern 3: Empty constructor then .parse(buffer)
+                        const instance = new parseFunc();
+                        data = await instance.parse(dataBuffer);
                     }
                 }
                 
+                // Final check for text
                 if (data && data.text && data.text.trim().length > 0) {
                     console.log("📄 [PDF] Parsing successful. Text length:", data.text.length);
                     textToIngest = data.text;
+                } else if (data && typeof data === 'string' && data.trim().length > 0) {
+                    // Sometimes it returns the string directly
+                    textToIngest = data;
                 } else {
-                    console.warn("⚠️ [PDF] No text extracted. Likely an image PDF.");
-                    throw new Error("This PDF seems to be an image (scanned document). Please upload a text-based PDF or a clear image (JPG/PNG).");
+                    console.warn("⚠️ [PDF] No text extracted.");
+                    throw new Error("This PDF seems to be an image (scanned document) or uses an unsupported format. Please upload a text-based PDF or a clear image.");
                 }
             } catch (pdfErr) {
                 console.error("❌ [PDF] Parse Error:", pdfErr.message);
