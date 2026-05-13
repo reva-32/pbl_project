@@ -38,6 +38,7 @@ const SmartInbox = () => {
   const [replyingTo, setReplyingTo] = useState<string | null>(null);
   const [replyText, setReplyText] = useState("");
   const [isSending, setIsSending] = useState(false);
+  const [isSyncing, setIsSyncing] = useState(false);
 
   const loadMessages = async () => {
     setLoading(true);
@@ -58,6 +59,26 @@ const SmartInbox = () => {
   useEffect(() => {
     loadMessages();
   }, []);
+
+  const syncGmail = async () => {
+    setIsSyncing(true);
+    const { data, error } = await apiFetch<{ synced: number; skipped: number; errors: string[] }>(
+      "/webhook/gmail/auth/sync?limit=20",
+      { method: "POST" }
+    );
+    if (error) {
+      toast.error(`Gmail sync failed: ${error}`);
+    } else {
+      const { synced, skipped } = data!;
+      if (synced > 0) {
+        toast.success(`✅ Synced ${synced} new email(s) from Gmail`);
+        loadMessages();
+      } else {
+        toast.info(`Inbox up to date — ${skipped} already saved, no new emails`);
+      }
+    }
+    setIsSyncing(false);
+  };
 
   const handleReply = async (eventId: string) => {
     if (!replyText.trim()) return;
@@ -116,16 +137,28 @@ const SmartInbox = () => {
               and ready for a calm review workflow.
             </p>
           </div>
-          <Button
-            variant="outline"
-            size="sm"
-            className="rounded-xl shrink-0 border-slate-200/90 bg-white/80 backdrop-blur-sm hover:shadow-md transition-all duration-300"
-            onClick={() => loadMessages()}
-            disabled={loading}
-          >
-            {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
-            Refresh
-          </Button>
+          <div className="flex gap-2 shrink-0">
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl border-blue-200/90 bg-blue-50/80 text-blue-700 hover:bg-blue-100 backdrop-blur-sm hover:shadow-md transition-all duration-300"
+              onClick={syncGmail}
+              disabled={isSyncing || loading}
+            >
+              {isSyncing ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : <Mail className="h-4 w-4 mr-2" />}
+              {isSyncing ? "Syncing…" : "Sync Gmail"}
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              className="rounded-xl shrink-0 border-slate-200/90 bg-white/80 backdrop-blur-sm hover:shadow-md transition-all duration-300"
+              onClick={() => loadMessages()}
+              disabled={loading}
+            >
+              {loading ? <Loader2 className="h-4 w-4 animate-spin mr-2" /> : null}
+              Refresh
+            </Button>
+          </div>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
