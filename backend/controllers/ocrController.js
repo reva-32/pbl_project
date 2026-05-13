@@ -47,49 +47,53 @@ exports.processImage = async (req, res) => {
         // --- BRANCH A: PDF HANDLING ---
         if (fileExt === '.pdf') {
             try {
-                console.log("📄 [PDF] Reading buffer...");
+                console.log("📄 [PDF] Master Engine starting...");
                 const dataBuffer = fs.readFileSync(filePath);
                 
-                // --- NEW: DIRECT PDFJS-DIST EXTRACTION ---
-                console.log("📄 [PDF] Using direct pdfjs-dist engine...");
-                const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
-                
-                const loadingTask = pdfjs.getDocument({
-                    data: new Uint8Array(dataBuffer),
-                    useSystemFonts: true,
-                    disableFontFace: true
-                });
-                
-                const pdfDocument = await loadingTask.promise;
-                const numPages = pdfDocument.numPages;
-                console.log(`📄 [PDF] Loaded ${numPages} pages.`);
-                
-                let fullText = "";
-                for (let i = 1; i <= numPages; i++) {
-                    const page = await pdfDocument.getPage(i);
-                    const content = await page.getTextContent();
-                    const pageText = content.items.map(item => item.str).join(" ");
-                    fullText += pageText + "\n";
+                // Layer 1: Direct PDFJS Stream Extraction
+                try {
+                    const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+                    const loadingTask = pdfjs.getDocument({ data: new Uint8Array(dataBuffer) });
+                    const pdfDocument = await loadingTask.promise;
+                    let extracted = "";
+                    for (let i = 1; i <= pdfDocument.numPages; i++) {
+                        const page = await pdfDocument.getPage(i);
+                        const content = await page.getTextContent();
+                        extracted += content.items.map(item => item.str).join(" ") + "\n";
+                    }
+                    if (extracted.trim().length > 10) textToIngest = extracted;
+                } catch (e1) {
+                    console.warn("⚠️ Layer 1 failed:", e1.message);
                 }
-                
-                textToIngest = fullText;
+
+                // Layer 2: Standard Fallback
+                if (!textToIngest) {
+                    try {
+                        const pdfParse = require('pdf-parse');
+                        const data = await pdfParse(dataBuffer);
+                        if (data && data.text && data.text.trim().length > 10) textToIngest = data.text;
+                    } catch (e2) {
+                        console.warn("⚠️ Layer 2 failed:", e2.message);
+                    }
+                }
+
+                // Layer 3: Forensic Literal String Recovery
+                if (!textToIngest) {
+                    const raw = dataBuffer.toString('utf-8');
+                    const matches = raw.match(/\(([^)]+)\)\s*Tj/g); // PDF text operator
+                    if (matches && matches.length > 5) {
+                        textToIngest = matches.map(m => m.slice(1, -4)).join(' ');
+                    }
+                }
 
                 if (!textToIngest || textToIngest.trim().length < 5) {
-                    throw new Error("Could not extract any text using direct PDF engine.");
+                    throw new Error("This PDF contains no readable text. It might be a scanned image.");
                 }
 
-                console.log("📄 [PDF] Extraction successful. Length:", textToIngest.length);
+                console.log("📄 [PDF] Master Engine success. Length:", textToIngest.length);
             } catch (pdfErr) {
-                console.error("❌ [PDF] Parse Error:", pdfErr.message);
-                // Fallback to simpler method if direct fails
-                try {
-                    const dataBuffer = fs.readFileSync(filePath);
-                    const pdfParse = require('pdf-parse');
-                    const data = await pdfParse(dataBuffer);
-                    textToIngest = data.text || "";
-                } catch (e) {
-                    throw new Error("This PDF format is unsupported. Please upload a clear image (JPG/PNG).");
-                }
+                console.error("❌ [PDF] Master Error:", pdfErr.message);
+                throw new Error("PDF processing failed. Please upload a clear image (JPG/PNG) of the document.");
             }
         } 
         // --- BRANCH B: IMAGE HANDLING ---
