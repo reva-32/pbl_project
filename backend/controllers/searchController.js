@@ -109,15 +109,21 @@ exports.searchEvents = async (req, res) => {
         4. **FOLLOW-UPS (MANDATORY FOR TEXT ANSWERS)**: Always end your text response with 2 to 3 insightful follow-up questions for ${ownerName}. Format them as bullet points under the exact bold heading: "**Suggested Follow-ups:**".
         `;
 
-        const chatCompletion = await groq.chat.completions.create({
-            messages: [
-                { role: 'system', content: systemPrompt },
-                { role: 'user', content: query },
-            ],
-            model: 'llama-3.3-70b-versatile',
-            temperature: 0.2,
-            max_tokens: 1500,
-        });
+        let chatCompletion;
+        try {
+            chatCompletion = await groq.chat.completions.create({
+                messages: [
+                    { role: 'system', content: systemPrompt },
+                    { role: 'user', content: query },
+                ],
+                model: 'llama-3.1-8b-instant',
+                temperature: 0.2,
+                max_tokens: 1500,
+            });
+        } catch (groqErr) {
+            console.error('❌ Groq API Error:', groqErr);
+            return res.status(500).json({ error: `AI service error: ${groqErr.message}` });
+        }
 
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
 
