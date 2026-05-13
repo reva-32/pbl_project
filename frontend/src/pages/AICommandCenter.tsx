@@ -37,17 +37,19 @@ interface OCRResponse {
   message: string;
   extractedText: string;
   detectedType: string;
+  analysis?: string;
 }
 
 interface Message {
   id: number;
   role: "user" | "ai";
   content: string;
-  type?: "text" | "invoice" | "projection";
+  type?: "text" | "invoice" | "projection" | "ocr_result";
   downloadUrl?: string;
   followUps?: string[];
   attachment?: string;
   ocrText?: string;
+  analysis?: string;
 }
 
 function parseFollowUps(text: string): { body: string; followUps: string[] } {
@@ -127,8 +129,10 @@ const AICommandCenter = () => {
     const ocrMsg: Message = {
       id: Date.now(),
       role: "ai",
-      content: `I've scanned your document. Detected as **${data.detectedType}** and memorised it. Here's a preview:`,
-      ocrText: data.extractedText.slice(0, 400) + (data.extractedText.length > 400 ? "…" : ""),
+      type: "ocr_result",
+      content: data.analysis || `I've scanned your document. Detected as **${data.detectedType}** and memorised it.`,
+      ocrText: data.extractedText.slice(0, 800) + (data.extractedText.length > 800 ? "…" : ""),
+      analysis: data.analysis,
     };
 
     setMessages((prev) => [...prev, ocrMsg]);
@@ -284,7 +288,36 @@ const AICommandCenter = () => {
                       </GlassCard>
                     )}
 
-                    {msg.role === "ai" && msg.type !== "invoice" && msg.type !== "projection" && (
+                    {msg.role === "ai" && msg.type === "ocr_result" && (
+                      <GlassCard className="p-5 mb-2 border-l-4 border-l-primary">
+                        <div className="flex items-center gap-3 mb-4">
+                          <div className="h-10 w-10 rounded-xl bg-primary/10 flex items-center justify-center">
+                            <FileText className="h-5 w-5 text-primary" />
+                          </div>
+                          <div>
+                            <p className="font-semibold text-foreground">Document Analyzed</p>
+                            <p className="text-xs text-muted-foreground">AI structural analysis complete</p>
+                          </div>
+                        </div>
+                        <div className="text-sm text-foreground mb-4 leading-relaxed whitespace-pre-wrap">
+                          {renderMarkdown(msg.content)}
+                        </div>
+                        {msg.ocrText && (
+                          <div className="mt-4 p-3 bg-slate-50/90 rounded-xl border border-slate-100">
+                            <details className="cursor-pointer">
+                              <summary className="text-xs font-semibold text-muted-foreground hover:text-primary transition-colors">
+                                View raw extracted text preview
+                              </summary>
+                              <p className="mt-2 text-[10px] text-foreground font-mono leading-relaxed opacity-70">
+                                {msg.ocrText}
+                              </p>
+                            </details>
+                          </div>
+                        )}
+                      </GlassCard>
+                    )}
+
+                    {msg.role === "ai" && msg.type !== "invoice" && msg.type !== "projection" && msg.type !== "ocr_result" && (
                       <GlassCard className="p-4 sm:p-5">
                         <p className="text-sm text-foreground leading-relaxed">{renderMarkdown(msg.content)}</p>
                         {msg.ocrText && (

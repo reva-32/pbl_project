@@ -63,15 +63,38 @@ exports.searchEvents = async (req, res) => {
             // Fallback to empty array, text search will still run
         }
 
-        // 2. Fallback Text Search (Critical since hash-embeddings don't do semantic search well)
-        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-        const textResults = await DecisionEvent.find({
-            userId: req.userId,
+        // 2. Fallback Keyword Search (Improved for semantic-like retrieval)
+        // Extract significant keywords (remove common small words)
+        const keywords = query
+            .toLowerCase()
+            .split(/\s+/)
+            .filter(word => word.length > 2 && !['tell', 'about', 'find', 'show', 'for', 'the', 'invoice', 'created', 'name'].includes(word));
+        
+        const searchConditions = keywords.map(kw => ({
             $or: [
-                { 'content.client': { $regex: escapedQuery, $options: 'i' } },
-                { 'content.text': { $regex: escapedQuery, $options: 'i' } }
+                { 'content.client': { $regex: kw, $options: 'i' } },
+                { 'content.text': { $regex: kw, $options: 'i' } },
+                { 'type': { $regex: kw, $options: 'i' } }
             ]
-        }).limit(3).lean();
+        }));
+
+        let textResults = [];
+        if (searchConditions.length > 0) {
+            textResults = await DecisionEvent.find({
+                userId: req.userId,
+                $or: searchConditions
+            }).limit(5).lean();
+        } else {
+            // Last resort: simple regex on the whole query if no keywords found
+            const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+            textResults = await DecisionEvent.find({
+                userId: req.userId,
+                $or: [
+                    { 'content.client': { $regex: escapedQuery, $options: 'i' } },
+                    { 'content.text': { $regex: escapedQuery, $options: 'i' } }
+                ]
+            }).limit(3).lean();
+        }
 
         // Merge and deduplicate
         const combined = [...results];
