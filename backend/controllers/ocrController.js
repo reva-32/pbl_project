@@ -49,7 +49,6 @@ exports.processImage = async (req, res) => {
             try {
                 console.log("📄 [PDF] Reading buffer...");
                 const dataBuffer = fs.readFileSync(filePath);
-                console.log("📄 [PDF] Parsing text...");
                 
                 // --- NEW: DIRECT PDFJS-DIST EXTRACTION ---
                 console.log("📄 [PDF] Using direct pdfjs-dist engine...");
@@ -84,16 +83,13 @@ exports.processImage = async (req, res) => {
                 console.error("❌ [PDF] Parse Error:", pdfErr.message);
                 // Fallback to simpler method if direct fails
                 try {
+                    const dataBuffer = fs.readFileSync(filePath);
                     const pdfParse = require('pdf-parse');
                     const data = await pdfParse(dataBuffer);
                     textToIngest = data.text || "";
                 } catch (e) {
                     throw new Error("This PDF format is unsupported. Please upload a clear image (JPG/PNG).");
                 }
-            }
-            } catch (pdfErr) {
-                console.error("❌ [PDF] Parse Error:", pdfErr.message);
-                throw pdfErr;
             }
         } 
         // --- BRANCH B: IMAGE HANDLING ---
