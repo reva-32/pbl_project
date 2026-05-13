@@ -51,12 +51,15 @@ exports.processImage = async (req, res) => {
                 const dataBuffer = fs.readFileSync(filePath);
                 console.log("📄 [PDF] Parsing text...");
                 
-                if (typeof pdf !== 'function') {
-                    console.error("❌ [PDF] pdf-parse is not a function. Type:", typeof pdf);
-                    throw new Error("PDF processing engine failed to initialize.");
+                // Handle different export patterns (CommonJS vs ESM)
+                const parseFunc = (typeof pdf === 'function') ? pdf : (pdf && typeof pdf.default === 'function' ? pdf.default : null);
+
+                if (!parseFunc) {
+                    console.error("❌ [PDF] pdf-parse is not a function. Type:", typeof pdf, "Keys:", Object.keys(pdf || {}));
+                    throw new Error("PDF processing engine failed to initialize correctly. Please contact support.");
                 }
 
-                const data = await pdf(dataBuffer);
+                const data = await parseFunc(dataBuffer);
                 
                 if (data && data.text && data.text.trim().length > 0) {
                     console.log("📄 [PDF] Parsing successful. Text length:", data.text.length);
