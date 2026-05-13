@@ -51,85 +51,46 @@ exports.processImage = async (req, res) => {
                 const dataBuffer = fs.readFileSync(filePath);
                 console.log("📄 [PDF] Parsing text...");
                 
-                // Handle different export patterns (CommonJS, ESM, Forks)
-                let parseFunc = null;
-                if (typeof pdf === 'function') {
-                    parseFunc = pdf;
-                } else if (pdf && typeof pdf.PDFParse === 'function') {
-                    parseFunc = pdf.PDFParse;
-                } else if (pdf && typeof pdf.default === 'function') {
-                    parseFunc = pdf.default;
-                }
-
-                if (!parseFunc) {
-                    throw new Error("PDF engine not found. Please use an image version.");
-                }
-
-                let data;
-                try {
-                    // Pattern 1: Advanced async pagerender
-                    const options = {
-                        pagerender: async (pageData) => {
-                            try {
-                                const textContent = await pageData.getTextContent();
-                                return textContent.items.map(item => item.str).join(' ');
-                            } catch (e) {
-                                return '';
-                            }
-                        }
-                    };
-
-                    // Try direct function call with options
-                    if (typeof parseFunc === 'function') {
-                        data = await parseFunc(dataBuffer, options);
-                    } else {
-                        const instance = new parseFunc(dataBuffer);
-                        data = await (instance.parse ? instance.parse(options) : instance);
-                    }
-                } catch (err) {
-                    console.error("🔄 [PDF] Advanced parse failed, falling back to basic...");
-                    const instance = new parseFunc(dataBuffer);
-                    data = await (instance.parse ? instance.parse() : instance);
+                // --- NEW: DIRECT PDFJS-DIST EXTRACTION ---
+                console.log("📄 [PDF] Using direct pdfjs-dist engine...");
+                const pdfjs = require('pdfjs-dist/legacy/build/pdf.js');
+                
+                const loadingTask = pdfjs.getDocument({
+                    data: new Uint8Array(dataBuffer),
+                    useSystemFonts: true,
+                    disableFontFace: true
+                });
+                
+                const pdfDocument = await loadingTask.promise;
+                const numPages = pdfDocument.numPages;
+                console.log(`📄 [PDF] Loaded ${numPages} pages.`);
+                
+                let fullText = "";
+                for (let i = 1; i <= numPages; i++) {
+                    const page = await pdfDocument.getPage(i);
+                    const content = await page.getTextContent();
+                    const pageText = content.items.map(item => item.str).join(" ");
+                    fullText += pageText + "\n";
                 }
                 
-                // --- DEEP INSPECTION TEXT EXTRACTION ---
-                if (data) {
-                    if (typeof data === 'string') textToIngest = data;
-                    else if (data.text) textToIngest = data.text;
-                    else if (data.content) textToIngest = data.content;
-                    else if (data.data) textToIngest = data.data;
-                    else if (data.textContent) textToIngest = data.textContent;
-                    
-                    // Brute force page search (some variants store text in pages)
-                    if (!textToIngest && data.pages && Array.isArray(data.pages)) {
-                        console.log("📄 [PDF] Searching through " + data.pages.length + " pages...");
-                        textToIngest = data.pages.map(page => {
-                            if (typeof page === 'string') return page;
-                            if (page.text) return page.text;
-                            if (page.content && Array.isArray(page.content)) {
-                                return page.content.map(item => item.str || item.text || item).join(' ');
-                            }
-                            return '';
-                        }).join('\n');
-                    }
-                    
-                    if (Array.isArray(data) && !textToIngest) textToIngest = data.join(' ');
-                }
+                textToIngest = fullText;
 
                 if (!textToIngest || textToIngest.trim().length < 5) {
-                    console.warn("⚠️ [PDF] Clean extraction failed. Attempting RAW recovery...");
-                    // Regex for extracting literal strings from PDF (Tj or Td markers)
-                    const rawStrings = dataBuffer.toString('utf-8').match(/\(([^)]+)\)\s*Tj/g);
-                    if (rawStrings && rawStrings.length > 5) {
-                        textToIngest = rawStrings.map(s => s.slice(1, -4)).join(' ');
-                    }
-                }
-
-                if (!textToIngest || textToIngest.trim().length < 5) {
-                    throw new Error("Could not extract text from this PDF. Please try a different PDF or an image version.");
+                    throw new Error("Could not extract any text using direct PDF engine.");
                 }
 
                 console.log("📄 [PDF] Extraction successful. Length:", textToIngest.length);
+            } catch (pdfErr) {
+                console.error("❌ [PDF] Parse Error:", pdfErr.message);
+                // Fallback to simpler method if direct fails
+                try {
+                    const pdfParse = require('pdf-parse');
+                    const data = await pdfParse(dataBuffer);
+                    textToIngest = data.text || "";
+                } catch (e) {
+                    throw new Error("This PDF format is unsupported. Please upload a clear image (JPG/PNG).");
+                }
+            }
             } catch (pdfErr) {
                 console.error("❌ [PDF] Parse Error:", pdfErr.message);
                 throw pdfErr;
