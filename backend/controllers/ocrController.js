@@ -1,7 +1,7 @@
 const Tesseract = require('tesseract.js');
 const fs = require('fs');
 const path = require('path');
-const pdfParse = require('pdf-parse');
+const pdf = require('pdf-parse');
 const { ingestData } = require('./ingestController'); 
 const Groq = require('groq-sdk');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
@@ -50,7 +50,13 @@ exports.processImage = async (req, res) => {
                 console.log("📄 [PDF] Reading buffer...");
                 const dataBuffer = fs.readFileSync(filePath);
                 console.log("📄 [PDF] Parsing text...");
-                const data = await pdfParse(dataBuffer);
+                
+                if (typeof pdf !== 'function') {
+                    console.error("❌ [PDF] pdf-parse is not a function. Type:", typeof pdf);
+                    throw new Error("PDF processing engine failed to initialize.");
+                }
+
+                const data = await pdf(dataBuffer);
                 
                 if (data && data.text && data.text.trim().length > 0) {
                     console.log("📄 [PDF] Parsing successful. Text length:", data.text.length);
