@@ -55,6 +55,8 @@ exports.processImage = async (req, res) => {
                 let parseFunc = null;
                 if (typeof pdf === 'function') {
                     parseFunc = pdf;
+                } else if (pdf && typeof pdf.PDFParse === 'function') {
+                    parseFunc = pdf.PDFParse;
                 } else if (pdf && typeof pdf.default === 'function') {
                     parseFunc = pdf.default;
                 } else if (pdf && typeof pdf.pdfParse === 'function') {
@@ -66,7 +68,7 @@ exports.processImage = async (req, res) => {
                 if (!parseFunc) {
                     const keys = pdf ? Object.keys(pdf).join(', ') : 'null';
                     console.error("❌ [PDF] Engine mismatch. Type:", typeof pdf, "Keys:", keys);
-                    throw new Error(`PDF engine initialization failed (Type: ${typeof pdf}, Keys: ${keys}). Please try an image version.`);
+                    throw new Error(`PDF engine initialization failed. Found keys: ${keys}. Please use an image version.`);
                 }
 
                 const data = await parseFunc(dataBuffer);
