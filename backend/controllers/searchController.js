@@ -43,26 +43,33 @@ exports.searchEvents = async (req, res) => {
         const queryVector = await getEmbedding(query);
         const mongoose = require('mongoose');
         // 1. Vector Search
-        let results = await DecisionEvent.aggregate([
-            {
-                '$vectorSearch': {
-                    'index': 'vector_index',
-                    'path': 'embedding',
-                    'queryVector': queryVector,
-                    'numCandidates': 50,
-                    'limit': 3,
-                    'filter': { 'userId': new mongoose.Types.ObjectId(req.userId) }
+        let results = [];
+        try {
+            results = await DecisionEvent.aggregate([
+                {
+                    '$vectorSearch': {
+                        'index': 'vector_index',
+                        'path': 'embedding',
+                        'queryVector': queryVector,
+                        'numCandidates': 50,
+                        'limit': 3,
+                        'filter': { 'userId': new mongoose.Types.ObjectId(req.userId) }
+                    },
                 },
-            },
-            { '$project': { '_id': 0, 'type': 1, 'content': 1, 'status': 1, 'timestamp': 1 } },
-        ]);
+                { '$project': { '_id': 0, 'type': 1, 'content': 1, 'status': 1, 'timestamp': 1 } },
+            ]);
+        } catch (err) {
+            console.error('⚠️ Vector search failed:', err.message);
+            // Fallback to empty array, text search will still run
+        }
 
         // 2. Fallback Text Search (Critical since hash-embeddings don't do semantic search well)
+        const escapedQuery = query.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
         const textResults = await DecisionEvent.find({
             userId: req.userId,
             $or: [
-                { 'content.client': { $regex: query, $options: 'i' } },
-                { 'content.text': { $regex: query, $options: 'i' } }
+                { 'content.client': { $regex: escapedQuery, $options: 'i' } },
+                { 'content.text': { $regex: escapedQuery, $options: 'i' } }
             ]
         }).limit(3).lean();
 
