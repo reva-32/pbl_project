@@ -74,7 +74,12 @@ exports.authCallback = async (req, res) => {
       }
     });
 
-    console.log(`✅ Gmail Watch setup successful for user ${user.email}. History ID: ${watchRes.data.historyId}`);
+    // Save the historyId from watch — future webhooks start from here, not from the beginning
+    await User.findByIdAndUpdate(userId, {
+      lastGmailHistoryId: String(watchRes.data.historyId)
+    });
+
+    console.log(`✅ Gmail Watch setup for ${user.email}. Starting historyId: ${watchRes.data.historyId}`);
 
     // Redirect back to frontend integrations
     const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:8080';

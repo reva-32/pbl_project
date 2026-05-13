@@ -39,10 +39,11 @@ const UserSchema = new mongoose.Schema({
   loginAlerts:      { type: Boolean, default: true },
 
   // ── Gmail Webhooks (OAuth) ──
-  googleAccessToken:  { type: String, default: null },
-  googleRefreshToken: { type: String, default: null },
-  googleTokenExpiry:  { type: Number, default: null },
-  googleEmail:        { type: String, default: null },
+  googleAccessToken:    { type: String, default: null },
+  googleRefreshToken:   { type: String, default: null },
+  googleTokenExpiry:    { type: Number, default: null },
+  googleEmail:          { type: String, default: null },
+  lastGmailHistoryId:   { type: String, default: null }, // Tracks last processed historyId
 
 }, { timestamps: true });
 

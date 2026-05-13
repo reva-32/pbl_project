@@ -18,6 +18,7 @@ import {
   Radio,
   Inbox,
   BarChart3,
+  Mail,
 } from "lucide-react";
 import { apiFetch } from "@/lib/api";
 import { toast } from "sonner";
@@ -27,6 +28,7 @@ const platformIcon = (platform: string) => {
   if (platform === "WhatsApp") return <MessageSquare className="h-4 w-4 text-emerald-600" />;
   if (platform === "Instagram") return <Instagram className="h-4 w-4 text-pink-600" />;
   if (platform === "Facebook") return <Facebook className="h-4 w-4 text-slate-600" />;
+  if (platform === "Email") return <Mail className="h-4 w-4 text-blue-500" />;
   return <MessageSquare className="h-4 w-4" />;
 };
 

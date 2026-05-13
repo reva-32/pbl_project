@@ -189,139 +189,149 @@ exports.receiveEmail = async (req, res) => {
 };
 
 /**
- * Receive and process incoming Gmail Pub/Sub Webhooks
+ * Receive and process incoming Gmail Pub/Sub Webhooks.
+ * Tracks lastHistoryId per user to only fetch truly NEW messages.
+ * Deduplicates by gmailMessageId to prevent duplicate saves.
  */
 exports.receiveGmailWebhook = async (req, res) => {
+    // Return 200 immediately — Pub/Sub retries on anything else
+    res.status(200).send('OK');
+
     try {
-        const message = req.body.message;
-        if (!message || !message.data) {
-            console.error('❌ Invalid Pub/Sub message received');
-            return res.status(400).send('Bad Request');
+        const message = req.body?.message;
+        if (!message?.data) {
+            console.error('❌ Invalid Pub/Sub message — missing data');
+            return;
         }
 
-        // 1. Decode Pub/Sub Data
-        const dataBuffer = Buffer.from(message.data, 'base64');
-        const dataJson = JSON.parse(dataBuffer.toString('utf-8'));
-        
+        // 1. Decode notification
+        const dataJson = JSON.parse(Buffer.from(message.data, 'base64').toString('utf-8'));
         const emailAddress = dataJson.emailAddress;
-        const historyId = dataJson.historyId;
+        const newHistoryId = String(dataJson.historyId);
 
-        console.log(`📧 Gmail Push Notification for: ${emailAddress} (History ID: ${historyId})`);
+        console.log(`📧 Gmail Push for: ${emailAddress} (historyId: ${newHistoryId})`);
 
-        // 2. Find User and get Tokens
+        // 2. Find user
         const User = require('../models/user');
-        const user = await User.findOne({ 
-            $or: [
-                { email: emailAddress },
-                { googleEmail: emailAddress }
-            ]
+        const user = await User.findOne({
+            $or: [{ email: emailAddress }, { googleEmail: emailAddress }]
         });
-        if (!user || !user.googleRefreshToken) {
-            console.warn(`⚠️ User not found or not connected to Gmail: ${emailAddress}`);
-            return res.status(200).send('OK'); // Acknowledge to Pub/Sub to stop retries
-        }
 
-        // 3. Setup OAuth2 Client
+        if (!user) { console.warn(`⚠️ No user found for Gmail: ${emailAddress}`); return; }
+        if (!user.googleRefreshToken) { console.warn(`⚠️ ${emailAddress} has no refresh token`); return; }
+
+        // 3. Determine startHistoryId — use last known, or fall back to newHistoryId-10
+        const startHistoryId = user.lastGmailHistoryId
+            ? String(user.lastGmailHistoryId)
+            : String(Math.max(1, parseInt(newHistoryId) - 10));
+
+        console.log(`🔍 Fetching history ${startHistoryId} → ${newHistoryId}`);
+
+        // 4. Setup OAuth2
         const { google } = require('googleapis');
         const oauth2Client = new google.auth.OAuth2(
             process.env.GOOGLE_CLIENT_ID,
             process.env.GOOGLE_CLIENT_SECRET,
             process.env.GOOGLE_REDIRECT_URI
         );
-
         oauth2Client.setCredentials({
-            access_token: user.googleAccessToken,
+            access_token:  user.googleAccessToken,
             refresh_token: user.googleRefreshToken,
-            expiry_date: user.googleTokenExpiry
+            expiry_date:   user.googleTokenExpiry
         });
-
         const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
 
-        // 4. Fetch the newly added messages
-        const historyRes = await gmail.users.history.list({
-            userId: 'me',
-            startHistoryId: Math.max(1, parseInt(historyId) - 1000).toString(), // A bit before the current historyId to be safe
-            historyTypes: ['messageAdded']
-        });
+        // 5. Fetch history — handle expired historyId gracefully
+        let historyRes;
+        try {
+            historyRes = await gmail.users.history.list({
+                userId: 'me',
+                startHistoryId,
+                historyTypes: ['messageAdded']
+            });
+        } catch (histErr) {
+            if (histErr.code === 404) {
+                console.warn(`⚠️ historyId ${startHistoryId} expired — resetting to ${newHistoryId}`);
+                await User.findByIdAndUpdate(user._id, { lastGmailHistoryId: newHistoryId });
+            } else {
+                console.error('❌ history.list error:', histErr.message);
+            }
+            return;
+        }
 
         const histories = historyRes.data.history || [];
+        let processed = 0;
+
         for (const history of histories) {
-            const messagesAdded = history.messagesAdded || [];
-            for (const msgAdded of messagesAdded) {
+            for (const msgAdded of (history.messagesAdded || [])) {
                 const messageId = msgAdded.message.id;
-                
-                // 5. Fetch full message content
-                const msgRes = await gmail.users.messages.get({
-                    userId: 'me',
-                    id: messageId,
-                    format: 'full'
-                });
 
-                const headers = msgRes.data.payload.headers;
-                const subjectHeader = headers.find(h => h.name === 'Subject');
-                const fromHeader = headers.find(h => h.name === 'From');
-                
-                const subject = subjectHeader ? subjectHeader.value : 'No Subject';
-                const from = fromHeader ? fromHeader.value : 'Unknown Sender';
-                
-                // Extract plain text body (simplified extraction)
+                // 6. Deduplicate
+                const exists = await DecisionEvent.findOne({ 'content.gmailMessageId': messageId });
+                if (exists) { console.log(`⏭️  Already saved ${messageId}`); continue; }
+
+                // 7. Fetch full message
+                let msgRes;
+                try { msgRes = await gmail.users.messages.get({ userId: 'me', id: messageId, format: 'full' }); }
+                catch (e) { console.warn(`⚠️ Could not fetch ${messageId}: ${e.message}`); continue; }
+
+                const headers = msgRes.data.payload?.headers || [];
+                const subject = headers.find(h => h.name === 'Subject')?.value || 'No Subject';
+                const from    = headers.find(h => h.name === 'From')?.value    || 'Unknown Sender';
+
+                // Skip outgoing emails
+                if (from.includes(emailAddress)) continue;
+
+                // 8. Extract body (cap at 1000 chars to save tokens)
                 let body = '';
-                if (msgRes.data.payload.parts) {
-                    const textPart = msgRes.data.payload.parts.find(p => p.mimeType === 'text/plain');
-                    if (textPart && textPart.body.data) {
-                        body = Buffer.from(textPart.body.data, 'base64').toString('utf-8');
-                    }
-                } else if (msgRes.data.payload.body && msgRes.data.payload.body.data) {
-                    body = Buffer.from(msgRes.data.payload.body.data, 'base64').toString('utf-8');
+                const textPart = (msgRes.data.payload?.parts || []).find(p => p.mimeType === 'text/plain');
+                if (textPart?.body?.data) {
+                    body = Buffer.from(textPart.body.data, 'base64').toString('utf-8').slice(0, 1000);
+                } else if (msgRes.data.payload?.body?.data) {
+                    body = Buffer.from(msgRes.data.payload.body.data, 'base64').toString('utf-8').slice(0, 1000);
                 }
 
-                // Ignore emails sent by the user themselves
-                if (from.includes(emailAddress)) {
-                    continue;
-                }
+                console.log(`💬 New email from "${from}": "${subject}"`);
 
-                console.log(`💬 New Email from ${from}: "${subject}"`);
+                // 9. AI classify + embed
+                const analysis  = await classifyMessage(`Subject: ${subject}\n\n${body}`);
+                const embedding = await getEmbedding(`Email from ${from}: ${subject} ${body}`);
 
-                // 6. AI Analysis & Embeddings
-                const analysis = await classifyMessage(`Subject: ${subject}\n\n${body}`);
-                const embedding = await getEmbedding(`Email from ${from}: ${subject} - ${body}`);
-
-                // 7. Save to Database
-                const newMsg = new DecisionEvent({
+                // 10. Save
+                await new DecisionEvent({
                     userId: user._id,
-                    type: 'CUSTOMER_MSG',
+                    type:   'CUSTOMER_MSG',
                     content: {
-                        sender: from,
-                        text: `Subject: ${subject}\n\n${body}`,
-                        platform: 'Email',
-                        summary: analysis.summary,
-                        category: analysis.category,
-                        priority: analysis.priority,
-                        isRead: false,
-                        gmailMessageId: messageId // Store this to allow replying later
+                        sender:         from,
+                        text:           `Subject: ${subject}\n\n${body}`,
+                        platform:       'Email',
+                        summary:        analysis.summary,
+                        category:       analysis.category,
+                        priority:       analysis.priority,
+                        isRead:         false,
+                        gmailMessageId: messageId
                     },
-                    embedding: embedding,
+                    embedding,
                     timestamp: new Date()
-                });
+                }).save();
 
-                await newMsg.save();
-                console.log(`✅ Analyzed and stored Gmail: [${analysis.category}] ${analysis.summary}`);
+                console.log(`✅ Saved Gmail [${analysis.category}]: ${analysis.summary}`);
+                processed++;
             }
         }
 
-        // Update tokens in DB if they were refreshed
-        const newTokens = oauth2Client.credentials;
-        if (newTokens.access_token !== user.googleAccessToken) {
-            await User.findByIdAndUpdate(user._id, {
-                googleAccessToken: newTokens.access_token,
-                googleTokenExpiry: newTokens.expiry_date
-            });
-        }
+        console.log(`📊 Gmail webhook done — ${processed} new message(s) saved`);
 
-        res.status(200).send('OK');
+        // 11. Update lastHistoryId + refresh tokens if rotated
+        const updatedCreds = oauth2Client.credentials;
+        await User.findByIdAndUpdate(user._id, {
+            lastGmailHistoryId: newHistoryId,
+            ...(updatedCreds.access_token && updatedCreds.access_token !== user.googleAccessToken
+                ? { googleAccessToken: updatedCreds.access_token, googleTokenExpiry: updatedCreds.expiry_date }
+                : {})
+        });
 
     } catch (err) {
-        console.error('❌ Gmail Webhook Error:', err.message);
-        res.status(200).send('OK'); // Always return 200 to Pub/Sub to prevent exponential backoff retries if it's our processing error
+        console.error('❌ Gmail Webhook processing error:', err.message);
     }
 };
