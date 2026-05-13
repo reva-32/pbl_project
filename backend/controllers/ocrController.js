@@ -100,19 +100,20 @@ exports.processImage = async (req, res) => {
                     else if (Array.isArray(data)) textToIngest = data.join(' ');
                 }
 
-                if (textToIngest && textToIngest.trim().length > 5) {
-                    console.log("📄 [PDF] Extraction successful. Length:", textToIngest.length);
-                } else {
-                    console.warn("⚠️ [PDF] Extraction returned empty. Attempting raw string buffer match...");
-                    // Last resort: raw string extraction (best effort)
-                    const rawStrings = dataBuffer.toString('utf-8').match(/[\w\s]{4,}/g);
-                    if (rawStrings && rawStrings.length > 20) {
-                        textToIngest = rawStrings.join(' ');
-                        console.log("📄 [PDF] Raw buffer match successful.");
-                    } else {
-                        throw new Error("This PDF format is currently unsupported for direct text reading. Please upload an image version.");
+                if (!textToIngest || textToIngest.trim().length < 5) {
+                    console.warn("⚠️ [PDF] Extraction returned empty. Attempting raw buffer string recovery...");
+                    // Grab chunks of legible strings from the raw PDF stream
+                    const rawStrings = dataBuffer.toString('utf-8').match(/[^\x00-\x1F\x7F-\x9F]{4,}/g);
+                    if (rawStrings && rawStrings.length > 10) {
+                        textToIngest = "[RAW_PDF_STREAM]: " + rawStrings.slice(0, 1000).join(' ');
                     }
                 }
+
+                if (!textToIngest || textToIngest.trim().length < 5) {
+                    throw new Error("This PDF format is unsupported. Please upload a clear image (JPG/PNG) or a text-based PDF.");
+                }
+
+                console.log("📄 [PDF] Extraction successful (Format: " + (textToIngest.startsWith("[RAW") ? "RAW" : "CLEAN") + ")");
             } catch (pdfErr) {
                 console.error("❌ [PDF] Parse Error:", pdfErr.message);
                 throw pdfErr;
