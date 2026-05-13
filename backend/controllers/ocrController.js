@@ -81,16 +81,23 @@ exports.processImage = async (req, res) => {
                     }
                 }
                 
-                // Final check for text
-                if (data && data.text && data.text.trim().length > 0) {
-                    console.log("📄 [PDF] Parsing successful. Text length:", data.text.length);
-                    textToIngest = data.text;
-                } else if (data && typeof data === 'string' && data.trim().length > 0) {
-                    // Sometimes it returns the string directly
-                    textToIngest = data;
+                // --- BRUTE FORCE TEXT EXTRACTION ---
+                // We try every possible property that might hold the text
+                if (data) {
+                    if (typeof data === 'string') textToIngest = data;
+                    else if (data.text) textToIngest = data.text;
+                    else if (data.content) textToIngest = data.content;
+                    else if (data.data) textToIngest = data.data;
+                    else if (data.textContent) textToIngest = data.textContent;
+                    // If it's an array, join it
+                    else if (Array.isArray(data)) textToIngest = data.join(' ');
+                }
+
+                if (textToIngest && textToIngest.trim().length > 5) {
+                    console.log("📄 [PDF] Brute-force extraction successful. Length:", textToIngest.length);
                 } else {
-                    console.warn("⚠️ [PDF] No text extracted.");
-                    throw new Error("This PDF seems to be an image (scanned document) or uses an unsupported format. Please upload a text-based PDF or a clear image.");
+                    console.warn("⚠️ [PDF] Extraction returned empty or invalid data:", data);
+                    throw new Error("This PDF format is currently unsupported for direct text reading. Please upload an image (JPG/PNG) or a standard digital PDF.");
                 }
             } catch (pdfErr) {
                 console.error("❌ [PDF] Parse Error:", pdfErr.message);
