@@ -116,7 +116,7 @@ exports.searchEvents = async (req, res) => {
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: query },
                 ],
-                model: 'llama-3.1-8b-instant',
+                model: 'llama-3.3-70b-versatile',
                 temperature: 0.2,
                 max_tokens: 1500,
             });
@@ -134,7 +134,13 @@ exports.searchEvents = async (req, res) => {
         
         if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
             try {
-                const jsonStr = aiResponse.substring(firstBrace, lastBrace + 1);
+                let jsonStr = aiResponse.substring(firstBrace, lastBrace + 1);
+                // Cleanup common LLM JSON errors (smart quotes, single quotes, unquoted keys)
+                jsonStr = jsonStr
+                    .replace(/[\u201C\u201D]/g, '"')
+                    .replace(/'/g, '"')
+                    .replace(/([{,]\s*)(\w+)(\s*:)/g, '$1"$2"$3');
+                
                 command = JSON.parse(jsonStr);
             } catch (err) {
                 console.warn('⚠️ Failed to parse extracted JSON:', err.message);
