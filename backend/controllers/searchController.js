@@ -87,9 +87,10 @@ exports.searchEvents = async (req, res) => {
         INTERNAL RECORDS: ${internalContext}
         
         INSTRUCTIONS:
-        1. **TASK: INVOICE**: If user wants an invoice, output JSON ONLY with this shape (fill values from the user message; seller GST/address may be empty strings to use profile defaults):
+        1. **TASK: GENERATE INVOICE**: ONLY if the user explicitly asks to CREATE, MAKE, or GENERATE a new invoice, output JSON with this shape (fill values from the user message; seller GST/address may be empty strings to use profile defaults):
            { "action": "generate_invoice", "data": { "businessName": "", "businessContact": "", "ownerContact": "", "clientName": "", "amount": "", "detailedDescription": "", "sellerGstin": "", "sellerAddress": "", "sellerCity": "", "sellerPan": "", "currency": "inr", "taxRate": 18, "invoicePrefix": "INV-", "paymentTerms": "net30" } }
            Use "${companyName}" as businessName when not specified. **amount** = **base amount BEFORE GST** in INR (numeric string, e.g. "10000").
+           If the user asks to FIND, SEARCH, or TELL THEM ABOUT an existing invoice, DO NOT output JSON. Just answer their question using the INTERNAL RECORDS.
         
         2. **TASK: FINANCIAL**: Output JSON ONLY:
            { "action": "financial_projection", "data": { "currentRevenue": "100", "currentExpenses": "50", "revenueGrowth": "20", "expenseGrowth": "10" } }
