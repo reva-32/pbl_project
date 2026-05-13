@@ -71,7 +71,19 @@ exports.processImage = async (req, res) => {
                     throw new Error(`PDF engine initialization failed. Found keys: ${keys}. Please use an image version.`);
                 }
 
-                const data = await parseFunc(dataBuffer);
+                let data;
+                try {
+                    // Try direct call first
+                    data = await parseFunc(dataBuffer);
+                } catch (err) {
+                    // If it's a class constructor, try with 'new'
+                    if (err.message.includes("constructor") || err.message.includes("without 'new'")) {
+                        console.log("🔄 [PDF] Attempting class constructor invocation...");
+                        data = await (new parseFunc(dataBuffer));
+                    } else {
+                        throw err;
+                    }
+                }
                 
                 if (data && data.text && data.text.trim().length > 0) {
                     console.log("📄 [PDF] Parsing successful. Text length:", data.text.length);
