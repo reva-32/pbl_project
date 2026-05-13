@@ -51,12 +51,22 @@ exports.processImage = async (req, res) => {
                 const dataBuffer = fs.readFileSync(filePath);
                 console.log("📄 [PDF] Parsing text...");
                 
-                // Handle different export patterns (CommonJS vs ESM)
-                const parseFunc = (typeof pdf === 'function') ? pdf : (pdf && typeof pdf.default === 'function' ? pdf.default : null);
+                // Handle different export patterns (CommonJS, ESM, Forks)
+                let parseFunc = null;
+                if (typeof pdf === 'function') {
+                    parseFunc = pdf;
+                } else if (pdf && typeof pdf.default === 'function') {
+                    parseFunc = pdf.default;
+                } else if (pdf && typeof pdf.pdfParse === 'function') {
+                    parseFunc = pdf.pdfParse;
+                } else if (pdf && typeof pdf.parse === 'function') {
+                    parseFunc = pdf.parse;
+                }
 
                 if (!parseFunc) {
-                    console.error("❌ [PDF] pdf-parse is not a function. Type:", typeof pdf, "Keys:", Object.keys(pdf || {}));
-                    throw new Error("PDF processing engine failed to initialize correctly. Please contact support.");
+                    const keys = pdf ? Object.keys(pdf).join(', ') : 'null';
+                    console.error("❌ [PDF] Engine mismatch. Type:", typeof pdf, "Keys:", keys);
+                    throw new Error(`PDF engine initialization failed (Type: ${typeof pdf}, Keys: ${keys}). Please try an image version.`);
                 }
 
                 const data = await parseFunc(dataBuffer);
