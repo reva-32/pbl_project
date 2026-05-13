@@ -2,8 +2,8 @@ const PDFDocument = require('pdfkit');
 const fs = require('fs');
 const path = require('path');
 
-/** All generated invoices use Indian Rupee in the PDF (never $). */
-const INVOICE_CURRENCY_SYMBOL = '₹';
+/** All generated invoices use 'Rs.' for maximum compatibility with OCR engines. */
+const INVOICE_CURRENCY_SYMBOL = 'Rs. ';
 
 function parseAmount(val) {
     const n = parseFloat(String(val ?? '0').replace(/[^0-9.]/g, ''));
