@@ -85,9 +85,9 @@ exports.createInvoicePDF = (data) => {
 
             const amountNum = parseAmount(data.amount);
             const taxRate = parseAmount(data.taxRate) || 18;
-            const subtotal = amountNum > 0 ? amountNum / (1 + taxRate / 100) : 0;
-            const taxAmt = Math.max(0, amountNum - subtotal);
-            const total = amountNum > 0 ? amountNum : subtotal + taxAmt;
+            const subtotal = amountNum;
+            const taxAmt = subtotal * (taxRate / 100);
+            const total = subtotal + taxAmt;
 
             const businessName = String(data.businessName || 'Your Company').trim() || 'Your Company';
             const businessContact = String(data.businessContact || '—').trim() || '—';

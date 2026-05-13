@@ -42,7 +42,8 @@ exports.searchEvents = async (req, res) => {
 
         const queryVector = await getEmbedding(query);
         const mongoose = require('mongoose');
-        const results = await DecisionEvent.aggregate([
+        // 1. Vector Search
+        let results = await DecisionEvent.aggregate([
             {
                 '$vectorSearch': {
                     'index': 'vector_index',
@@ -56,8 +57,28 @@ exports.searchEvents = async (req, res) => {
             { '$project': { '_id': 0, 'type': 1, 'content': 1, 'status': 1, 'timestamp': 1 } },
         ]);
 
-        const internalContext = results.length > 0
-            ? results.map((doc) => `[${doc.type}]: ${JSON.stringify(doc.content)}`).join('\n')
+        // 2. Fallback Text Search (Critical since hash-embeddings don't do semantic search well)
+        const textResults = await DecisionEvent.find({
+            userId: req.userId,
+            $or: [
+                { 'content.client': { $regex: query, $options: 'i' } },
+                { 'content.text': { $regex: query, $options: 'i' } }
+            ]
+        }).limit(3).lean();
+
+        // Merge and deduplicate
+        const combined = [...results];
+        const seen = new Set(results.map(r => JSON.stringify(r.content)));
+        for (const tr of textResults) {
+            const contentStr = JSON.stringify(tr.content);
+            if (!seen.has(contentStr)) {
+                combined.push({ type: tr.type, content: tr.content, status: tr.status, timestamp: tr.timestamp });
+                seen.add(contentStr);
+            }
+        }
+
+        const internalContext = combined.length > 0
+            ? combined.map((doc) => `[${doc.type}]: ${JSON.stringify(doc.content)}`).join('\n')
             : 'EMPTY';
 
         const systemPrompt = `
@@ -68,7 +89,7 @@ exports.searchEvents = async (req, res) => {
         INSTRUCTIONS:
         1. **TASK: INVOICE**: If user wants an invoice, output JSON ONLY with this shape (fill values from the user message; seller GST/address may be empty strings to use profile defaults):
            { "action": "generate_invoice", "data": { "businessName": "", "businessContact": "", "ownerContact": "", "clientName": "", "amount": "", "detailedDescription": "", "sellerGstin": "", "sellerAddress": "", "sellerCity": "", "sellerPan": "", "currency": "inr", "taxRate": 18, "invoicePrefix": "INV-", "paymentTerms": "net30" } }
-           Use "${companyName}" as businessName when not specified. **amount** = **grand total inclusive of GST** in INR (numeric string, e.g. "11800").
+           Use "${companyName}" as businessName when not specified. **amount** = **base amount BEFORE GST** in INR (numeric string, e.g. "10000").
         
         2. **TASK: FINANCIAL**: Output JSON ONLY:
            { "action": "financial_projection", "data": { "currentRevenue": "100", "currentExpenses": "50", "revenueGrowth": "20", "expenseGrowth": "10" } }
@@ -93,10 +114,21 @@ exports.searchEvents = async (req, res) => {
         const aiResponse = chatCompletion.choices[0]?.message?.content || '';
 
         // ── Action handler ────────────────────────────────────────────────────
-        if (aiResponse.trim().startsWith('{')) {
+        let command = null;
+        const firstBrace = aiResponse.indexOf('{');
+        const lastBrace = aiResponse.lastIndexOf('}');
+        
+        if (firstBrace !== -1 && lastBrace !== -1 && lastBrace > firstBrace) {
             try {
-                const command = JSON.parse(aiResponse);
+                const jsonStr = aiResponse.substring(firstBrace, lastBrace + 1);
+                command = JSON.parse(jsonStr);
+            } catch (err) {
+                console.warn('⚠️ Failed to parse extracted JSON:', err.message);
+            }
+        }
 
+        if (command && command.action) {
+            try {
                 if (command.action === 'generate_invoice') {
                     console.log('⚡ Action: Invoice');
                     const raw = command.data && typeof command.data === 'object' ? command.data : {};
@@ -132,8 +164,12 @@ exports.searchEvents = async (req, res) => {
                     const pdfResult = await createInvoicePDF(invoiceData);
 
                     if (pdfResult.success) {
+                        const baseAmount = parseFloat(invoiceData.amount) || 0;
+                        const taxRate = parseFloat(invoiceData.taxRate) || 18;
+                        const grandTotal = baseAmount + (baseAmount * taxRate / 100);
+
                         // Better summary for vector search & retrieval
-                        const invoiceText = `INVOICE: ${invoiceData.clientName} - ${invoiceData.amount}. Details: ${invoiceData.detailedDescription}`;
+                        const invoiceText = `INVOICE: ${invoiceData.clientName} - Total: ${grandTotal.toFixed(2)}. Details: ${invoiceData.detailedDescription}`;
                         const invoiceEmbedding = await getEmbedding(invoiceText);
                         
                         await new DecisionEvent({
@@ -142,13 +178,13 @@ exports.searchEvents = async (req, res) => {
                             content: { 
                                 text: invoiceText, 
                                 client: invoiceData.clientName, 
-                                amount: invoiceData.amount,
+                                amount: grandTotal.toFixed(2), // Save grand total for dashboard
                                 downloadUrl: pdfResult.downloadUrl // CRITICAL: Save relative path for frontend
                             },
                             embedding: invoiceEmbedding,
                             timestamp: new Date(),
                         }).save();
-                        console.log('✅ Invoice record saved to database with download link.');
+                        console.log('✅ Invoice record saved to database with grand total.');
                     }
 
                     // Construct the full URL including the backend host
