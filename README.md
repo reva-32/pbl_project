@@ -14,20 +14,12 @@ MSME-360 is an enterprise SaaS platform that gives small business owners a unifi
 
 ---
 
-## Prerequisites
+## Deployment Strategy
 
-| Tool | Version | Notes |
-|------|---------|-------|
-| Node.js | ≥ 18 | Required by `@xenova/transformers` |
-| npm | ≥ 9 | Comes with Node.js |
-| MongoDB Atlas | Any | A free M0 cluster is sufficient to start |
-| Poppler | Any | Required for PDF→PNG conversion in OCR. |
-
-### Installing Poppler on Windows
-```powershell
-winget install poppler
-# Restart your terminal after installation
-```
+The application is deployed across managed cloud platforms:
+- **Frontend**: React application hosted on **Render** for high-performance delivery.
+- **Backend**: Node.js/Express API hosted on **Render** both for seamless integration.
+- **Database**: **MongoDB Atlas** provides a fully managed cloud database with automated backups and scaling.
 
 ---
 
