@@ -2,6 +2,7 @@ const Tesseract = require('tesseract.js');
 const fs = require('fs');
 const path = require('path');
 const pdf = require('pdf-parse');
+const DecisionEvent = require('../models/DecisionEvent');
 const { ingestData } = require('./ingestController'); 
 const Groq = require('groq-sdk');
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
