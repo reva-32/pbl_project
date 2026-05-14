@@ -151,19 +151,44 @@ exports.processImage = async (req, res) => {
             else if (lowerText.includes('receipt')) docType = 'RECEIPT';
         }
 
-        // Ingest to Memory
-        console.log("📥 [INGEST] Memorizing document...");
-        await internalIngest(cleanedText, docType, req.file.originalname, req.userId, extractedMetadata);
+        // --- DE-DUPLICATION CHECK ---
+        let isDuplicate = false;
+        if (docType === 'INVOICE' && extractedMetadata.clientName && extractedMetadata.totalAmount) {
+            console.log(`🔍 [OCR] Checking for duplicates: ${extractedMetadata.clientName} - ${extractedMetadata.totalAmount}`);
+            const existing = await DecisionEvent.findOne({
+                userId: req.userId,
+                type: 'INVOICE',
+                $or: [
+                    { 'content.client': extractedMetadata.clientName },
+                    { 'content.clientName': extractedMetadata.clientName }
+                ],
+                'content.amount': { $regex: new RegExp(`^${extractedMetadata.totalAmount}`, 'i') },
+                timestamp: { $gte: new Date(Date.now() - 24 * 60 * 60 * 1000) } // Last 24 hours
+            });
+            
+            if (existing) {
+                console.log("♻️ [OCR] Duplicate detected. Skipping double-save.");
+                isDuplicate = true;
+            }
+        }
+
+        // Ingest to Memory if not a duplicate
+        if (!isDuplicate) {
+            console.log("📥 [INGEST] Memorizing document...");
+            await internalIngest(cleanedText, docType, req.file.originalname, req.userId, extractedMetadata);
+        }
 
         // Cleanup
         if (fs.existsSync(filePath)) fs.unlinkSync(filePath);
 
         console.log("✅ [OCR COMPLETE]");
         res.status(200).json({
-            message: "Success",
+            message: isDuplicate ? "Success (Duplicate detected)" : "Success",
             extractedText: cleanedText,
             detectedType: docType,
-            analysis: analysis
+            analysis: isDuplicate 
+                ? `**Note: This invoice is already in your records. I have analyzed it but skipped creating a duplicate entry.**\n\n${analysis}`
+                : analysis
         });
 
     } catch (error) {
