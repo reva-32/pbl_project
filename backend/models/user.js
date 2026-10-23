@@ -9,6 +9,7 @@ const UserSchema = new mongoose.Schema({
   businessType:  { type: String, default: "" },
   city:          { type: String, default: "" },
   gstin:         { type: String, default: "" },
+  whatsappPhoneNumberId: { type: String, default: null, index: true },
 
   // ── Google Sheets ──
   googleSheetId: { type: String, default: null },
@@ -36,6 +37,13 @@ const UserSchema = new mongoose.Schema({
   // ── Security ──
   twoFactorEnabled: { type: Boolean, default: false },
   loginAlerts:      { type: Boolean, default: true },
+
+  // ── Gmail Webhooks (OAuth) ──
+  googleAccessToken:    { type: String, default: null },
+  googleRefreshToken:   { type: String, default: null },
+  googleTokenExpiry:    { type: Number, default: null },
+  googleEmail:          { type: String, default: null },
+  lastGmailHistoryId:   { type: String, default: null }, // Tracks last processed historyId
 
 }, { timestamps: true });
 

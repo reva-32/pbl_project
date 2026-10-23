@@ -26,6 +26,7 @@ pnpm-debug.log*
 # Uploaded user files (do not commit uploads)
 /uploads/
 /backend/uploads/
+/backend/public/invoices/
 
 # OS and editor files
 .DS_Store
@@ -47,5 +48,10 @@ ehthumbs.db
 *.seed
 
 # Optional caches
+# Caches and temporary files
 /.turbo/
 /.next/
+*.mjs
+/backend/scratch/
+
+tmp/

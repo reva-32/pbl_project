@@ -29,14 +29,32 @@ router.get('/inventory', authMiddleware, async (req, res) => {
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 
-const DecisionEvent = require('../models/decisionEvent');
+const DecisionEvent = require('../models/DecisionEvent');
 
 router.get('/events', authMiddleware, async (req, res) => {
     try {
         const query = { userId: req.userId };
         if (req.query.type) query.type = req.query.type;
-        const events = await DecisionEvent.find(query).sort({ timestamp: -1 });
+        
+        const limit = parseInt(req.query.limit) || 500; // Default max 500
+        const events = await DecisionEvent.find(query)
+            .sort({ timestamp: -1 })
+            .limit(limit);
+            
         res.json(events);
+    } catch (err) { res.status(500).json({ error: err.message }); }
+});
+
+router.patch('/events/:id/status', authMiddleware, async (req, res) => {
+    try {
+        const { status } = req.body;
+        const event = await DecisionEvent.findOneAndUpdate(
+            { _id: req.params.id, userId: req.userId },
+            { status: status.toUpperCase() },
+            { new: true }
+        );
+        if (!event) return res.status(404).json({ error: 'Event not found' });
+        res.json(event);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
 

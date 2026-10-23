@@ -1,4 +1,4 @@
-const DecisionEvent  = require('../models/decisionEvent');
+const DecisionEvent = require('../models/DecisionEvent');
 const { getEmbedding } = require('../services/ragService');
 
 exports.ingestData = async (req, res) => {

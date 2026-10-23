@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from "react";
 import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
+import { GlassCard } from "@/components/ui/glass-card";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -29,6 +30,7 @@ interface UserSettings {
   city:          string;
   gstin:         string;
   pan:           string;
+  whatsappPhoneNumberId: string;
   address:       string;
   currency:      string;
   language:      string;
@@ -241,6 +243,7 @@ const Settings = () => {
   const [pan,           setPan]           = useState("");
   const [businessType,  setBusinessType]  = useState("");
   const [city,          setCity]          = useState("");
+  const [whatsappPhoneNumberId, setWhatsappPhoneNumberId] = useState("");
 
   const [currency,      setCurrency]      = useState("inr");
   const [invoicePrefix, setInvoicePrefix] = useState("INV-");
@@ -292,6 +295,7 @@ const Settings = () => {
     setPan(u.pan ?? "");
     setBusinessType(u.businessType ?? "");
     setCity(u.city ?? "");
+    setWhatsappPhoneNumberId(u.whatsappPhoneNumberId ?? "");
     setCurrency(u.currency ?? "inr");
     setInvoicePrefix(u.invoicePrefix ?? "INV-");
     setPaymentTerms(u.paymentTerms ?? "net30");
@@ -386,20 +390,45 @@ const Settings = () => {
   // ════════════════════════════════════════════════════════════════════════
   return (
     <AppLayout title="Settings">
-      <div className="max-w-4xl mx-auto animate-fade-in">
+      <div className="max-w-4xl mx-auto animate-fade-in pb-8">
         <Tabs defaultValue="business">
-          <TabsList className="mb-6 flex-wrap h-auto gap-1">
-            <TabsTrigger value="business"><Building2 className="h-3.5 w-3.5 mr-1.5" /> Business</TabsTrigger>
-            <TabsTrigger value="account"><User className="h-3.5 w-3.5 mr-1.5" /> Account</TabsTrigger>
-            <TabsTrigger value="notifications"><Bell className="h-3.5 w-3.5 mr-1.5" /> Notifications</TabsTrigger>
-            <TabsTrigger value="billing"><CreditCard className="h-3.5 w-3.5 mr-1.5" /> Billing</TabsTrigger>
-            <TabsTrigger value="security"><Shield className="h-3.5 w-3.5 mr-1.5" /> Security</TabsTrigger>
+          <TabsList className="mb-8 flex flex-wrap h-auto gap-2 p-1.5 rounded-2xl border border-slate-200/90 bg-white/80 backdrop-blur-sm shadow-sm">
+            <TabsTrigger
+              value="business"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all duration-300"
+            >
+              <Building2 className="h-3.5 w-3.5 mr-1.5" /> Business
+            </TabsTrigger>
+            <TabsTrigger
+              value="account"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all duration-300"
+            >
+              <User className="h-3.5 w-3.5 mr-1.5" /> Account
+            </TabsTrigger>
+            <TabsTrigger
+              value="notifications"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all duration-300"
+            >
+              <Bell className="h-3.5 w-3.5 mr-1.5" /> Notifications
+            </TabsTrigger>
+            <TabsTrigger
+              value="billing"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all duration-300"
+            >
+              <CreditCard className="h-3.5 w-3.5 mr-1.5" /> Billing
+            </TabsTrigger>
+            <TabsTrigger
+              value="security"
+              className="rounded-xl data-[state=active]:bg-primary data-[state=active]:text-primary-foreground data-[state=active]:shadow-sm transition-all duration-300"
+            >
+              <Shield className="h-3.5 w-3.5 mr-1.5" /> Security
+            </TabsTrigger>
           </TabsList>
 
           {/* ── BUSINESS TAB ── */}
           <TabsContent value="business">
             <div className="space-y-6">
-              <Card className="p-6 border-0 shadow-premium bg-card">
+              <GlassCard className="p-6 sm:p-8">
                 <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
                   <Building2 className="h-4 w-4 text-primary" /> Business Information
                 </h3>
@@ -433,19 +462,34 @@ const Settings = () => {
                       <Label>PAN Number</Label>
                       <Input value={pan} onChange={(e) => setPan(e.target.value)} className="mt-1.5" />
                     </div>
+                    <div className="sm:col-span-2">
+                      <Label className="flex items-center gap-1.5">
+                        WhatsApp Phone Number ID
+                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-normal">REQUIRED FOR WEBHOOKS</Badge>
+                      </Label>
+                      <Input 
+                        value={whatsappPhoneNumberId} 
+                        onChange={(e) => setWhatsappPhoneNumberId(e.target.value)} 
+                        className="mt-1.5 font-mono text-sm" 
+                        placeholder="e.g. 1064227266775850"
+                      />
+                      <p className="text-[11px] text-muted-foreground mt-1.5 italic">
+                        Found in Meta Developer Portal → WhatsApp → API Setup. Messages received on this ID will be routed to your inbox.
+                      </p>
+                    </div>
                   </div>
                 )}
                 <Button
                   variant="hero"
                   className="mt-5"
                   disabled={saving === 'business' || loading}
-                  onClick={() => save('business', { companyName, address, gstin, pan, businessType, city })}
+                  onClick={() => save('business', { companyName, address, gstin, pan, businessType, city, whatsappPhoneNumberId })}
                 >
                   {saving === 'business' ? 'Saving...' : 'Save Business Info'}
                 </Button>
-              </Card>
+              </GlassCard>
 
-              <Card className="p-6 border-0 shadow-premium bg-card">
+              <GlassCard className="p-6 sm:p-8">
                 <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
                   <FileText className="h-4 w-4 text-primary" /> Invoice Defaults
                 </h3>
@@ -496,9 +540,9 @@ const Settings = () => {
                 >
                   {saving === 'invoice' ? 'Saving...' : 'Save Invoice Settings'}
                 </Button>
-              </Card>
+              </GlassCard>
 
-              <Card className="p-6 border-0 shadow-premium bg-card">
+              <GlassCard className="p-6 sm:p-8">
                 <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
                   <Globe className="h-4 w-4 text-primary" /> Localization
                 </h3>
@@ -551,13 +595,13 @@ const Settings = () => {
                 >
                   {saving === 'localization' ? 'Saving...' : 'Save Preferences'}
                 </Button>
-              </Card>
+              </GlassCard>
             </div>
           </TabsContent>
 
           {/* ── ACCOUNT TAB ── */}
           <TabsContent value="account">
-            <Card className="p-6 border-0 shadow-premium bg-card">
+            <GlassCard className="p-6 sm:p-8">
               <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
                 <User className="h-4 w-4 text-primary" /> Personal Information
               </h3>
@@ -593,12 +637,12 @@ const Settings = () => {
               >
                 {saving === 'account' ? 'Saving...' : 'Save Account'}
               </Button>
-            </Card>
+            </GlassCard>
           </TabsContent>
 
           {/* ── NOTIFICATIONS TAB ── */}
           <TabsContent value="notifications">
-            <Card className="p-6 border-0 shadow-premium bg-card">
+            <GlassCard className="p-6 sm:p-8">
               <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Bell className="h-4 w-4 text-primary" /> Notification Preferences
               </h3>
@@ -635,7 +679,7 @@ const Settings = () => {
               >
                 {saving === 'notifications' ? 'Saving...' : 'Save Notifications'}
               </Button>
-            </Card>
+            </GlassCard>
           </TabsContent>
 
           {/* ── BILLING TAB ── */}
@@ -671,7 +715,7 @@ const Settings = () => {
               )}
 
               {/* Current plan card */}
-              <Card className="p-6 border-0 shadow-premium bg-card">
+              <GlassCard className="p-6 sm:p-8">
                 <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
                   <CreditCard className="h-4 w-4 text-primary" /> Current Plan
                 </h3>
@@ -756,10 +800,10 @@ const Settings = () => {
                 ) : (
                   <p className="text-sm text-muted-foreground">No subscription found.</p>
                 )}
-              </Card>
+              </GlassCard>
 
               {/* Plan selection cards */}
-              <Card className="p-6 border-0 shadow-premium bg-card">
+              <GlassCard className="p-6 sm:p-8">
                 <h3 className="text-base font-semibold text-foreground mb-5">
                   {subscription?.status === 'active' ? 'Change or Upgrade Plan' : 'Choose a Plan'}
                 </h3>
@@ -842,10 +886,10 @@ const Settings = () => {
                     })}
                   </div>
                 )}
-              </Card>
+              </GlassCard>
 
               {/* Payment method */}
-              <Card className="p-6 border-0 shadow-premium bg-card">
+              <GlassCard className="p-6 sm:p-8">
                 <h3 className="text-base font-semibold text-foreground mb-4">Payment Method</h3>
                 {subscription?.paymentMethod ? (
                   <div className="flex items-center gap-3 p-3 rounded-lg bg-muted/50">
@@ -859,13 +903,13 @@ const Settings = () => {
                     No payment method on file. Add one after selecting a plan.
                   </p>
                 )}
-              </Card>
+              </GlassCard>
             </div>
           </TabsContent>
 
           {/* ── SECURITY TAB ── */}
           <TabsContent value="security">
-            <Card className="p-6 border-0 shadow-premium bg-card">
+            <GlassCard className="p-6 sm:p-8">
               <h3 className="text-base font-semibold text-foreground mb-4 flex items-center gap-2">
                 <Shield className="h-4 w-4 text-primary" /> Security Settings
               </h3>
@@ -928,7 +972,7 @@ const Settings = () => {
                   />
                 </div>
               </div>
-            </Card>
+            </GlassCard>
           </TabsContent>
 
         </Tabs>
