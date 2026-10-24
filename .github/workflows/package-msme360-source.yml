@@ -15,12 +15,12 @@ jobs:
       - name: Create source archive
         shell: bash
         run: |
-          zip -r msme360-source.zip . \
+          zip -r "$RUNNER_TEMP/msme360-source.zip" . \
             -x ".git/*" "*/node_modules/*" "node_modules/*" \
                "*/dist/*" "dist/*" "*/.env" ".env" "*/.env.*" \
                "*/coverage/*" "*/.DS_Store" "*.log"
       - uses: actions/upload-artifact@v4
         with:
           name: msme360-source
-          path: msme360-source.zip
+          path: ${{ runner.temp }}/msme360-source.zip
           retention-days: 3
