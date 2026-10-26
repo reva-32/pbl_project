@@ -26,7 +26,8 @@ const customerSchema = new mongoose.Schema({
   },
   preferredChannel: {
     type: String,
-    enum: ['email', 'whatsapp', 'sms', 'phone'],
+    // facebook/instagram were added for the Smart Inbox channel integrations.
+    enum: ['email', 'whatsapp', 'sms', 'phone', 'facebook', 'instagram'],
     default: 'email'
   }
 }, { timestamps: true });

@@ -38,10 +38,23 @@ const decisionSchema = new mongoose.Schema({
     status: {
         type: String,
         default: 'PENDING',
-        enum: ['PENDING', 'PAID', 'DISCARDED', 'APPROVED', 'REJECTED', 'EXECUTED', 'RESOLVED'],
+        enum: ['PENDING', 'PAID', 'DISCARDED', 'APPROVED', 'REJECTED', 'EXECUTED', 'RESOLVED', 'ARCHIVED'],
     },
     timestamp: { type: Date, default: Date.now },
 });
+
+// Provider message ids are unique per tenant. The partial index only covers
+// real string ids: outbound rows without a provider id store `null` and must
+// not collide with each other. Old rows without the field are also excluded.
+decisionSchema.index(
+    { userId: 1, 'content.provider': 1, 'content.providerMessageId': 1 },
+    {
+        unique: true,
+        partialFilterExpression: { 'content.providerMessageId': { $type: 'string' } },
+        name: 'uniq_tenant_provider_message',
+    }
+);
+decisionSchema.index({ userId: 1, 'content.conversationId': 1, timestamp: -1 });
 
 // The 3rd argument forces the exact collection name in MongoDB
 module.exports = mongoose.model('DecisionEvent', decisionSchema, 'decision_events');

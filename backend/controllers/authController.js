@@ -14,8 +14,16 @@ exports.signup = async (req, res) => {
       return res.status(400).json({ error: 'Email, password, company name, owner name, and phone are required.' });
     }
 
+    const normalizedEmail = String(email).trim().toLowerCase();
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(normalizedEmail)) {
+      return res.status(400).json({ error: 'Please enter a valid email address.' });
+    }
+    if (String(password).length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters.' });
+    }
+
     // Check for duplicate email
-    const existing = await User.findOne({ email: email.toLowerCase() });
+    const existing = await User.findOne({ email: normalizedEmail });
     if (existing) {
       return res.status(409).json({ error: 'An account with this email already exists.' });
     }
@@ -34,7 +42,7 @@ exports.signup = async (req, res) => {
 
     // Create user
     const user = await User.create({
-      email: email.toLowerCase(),
+      email: normalizedEmail,
       password: hashedPassword,
       companyName,
       ownerName,
@@ -76,7 +84,7 @@ exports.login = async (req, res) => {
     }
 
     // Find user
-    const user = await User.findOne({ email: email.toLowerCase() });
+    const user = await User.findOne({ email: String(email).trim().toLowerCase() });
     if (!user) {
       return res.status(401).json({ error: 'Invalid email or password.' });
     }

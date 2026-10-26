@@ -30,10 +30,11 @@ const routes = [
   { label: "Settings", path: "/settings", icon: Settings },
 ];
 
-const mockActions = [
-  { label: "Search invoices (demo)", hint: "Opens Financial Hub" },
-  { label: "Review pending messages (demo)", hint: "Opens Smart Inbox" },
-  { label: "Ask AI about cash flow (demo)", hint: "Opens AI Command Center" },
+const quickActions = [
+  { label: "Review Smart Inbox", hint: "Unread customer threads", path: "/inbox", icon: MessageSquare },
+  { label: "Create an invoice with AI", hint: "Open AI Command Center", path: "/ai", icon: Bot },
+  { label: "Check GST and invoices", hint: "Open Financial Hub", path: "/finance", icon: Wallet },
+  { label: "Manage channel connections", hint: "Open Integrations", path: "/integrations", icon: Plug },
 ];
 
 export function CommandPalette() {
@@ -71,7 +72,7 @@ export function CommandPalette() {
       </button>
 
       <CommandDialog open={open} onOpenChange={setOpen}>
-        <CommandInput placeholder="Jump to page or run a demo action…" />
+        <CommandInput placeholder="Jump to a page or quick action…" />
         <CommandList>
           <CommandEmpty>No matches.</CommandEmpty>
           <CommandGroup heading="Navigate">
@@ -90,21 +91,19 @@ export function CommandPalette() {
               </CommandItem>
             ))}
           </CommandGroup>
-          <CommandGroup heading="Demo (frontend only)">
-            {mockActions.map((a) => (
+          <CommandGroup heading="Quick actions">
+            {quickActions.map((action) => (
               <CommandItem
-                key={a.label}
-                value={a.label}
+                key={action.label}
+                value={`${action.label} ${action.hint}`}
                 onSelect={() => {
-                  if (a.label.includes("Financial")) navigate("/finance");
-                  else if (a.label.includes("Inbox")) navigate("/inbox");
-                  else navigate("/ai");
+                  navigate(action.path);
                   setOpen(false);
                 }}
               >
-                <Search className="mr-2 h-4 w-4 text-muted-foreground" />
-                <span>{a.label}</span>
-                <span className="ml-2 text-xs text-muted-foreground truncate">{a.hint}</span>
+                <action.icon className="mr-2 h-4 w-4 text-muted-foreground" />
+                <span>{action.label}</span>
+                <span className="ml-2 text-xs text-muted-foreground truncate">{action.hint}</span>
               </CommandItem>
             ))}
           </CommandGroup>

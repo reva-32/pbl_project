@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback } from "react";
+import { Link } from "react-router-dom";
 import { AppLayout } from "@/components/AppLayout";
 import { Card } from "@/components/ui/card";
 import { GlassCard } from "@/components/ui/glass-card";
@@ -125,10 +126,6 @@ interface PaymentModalProps {
 }
 
 const PaymentModal = ({ open, onClose, plan, onConfirm, loading }: PaymentModalProps) => {
-  const [cardNumber, setCardNumber] = useState("");
-  const [expiry, setExpiry] = useState("");
-  const [cvv, setCvv] = useState("");
-
   if (!open || !plan) return null;
 
   return (
@@ -136,10 +133,11 @@ const PaymentModal = ({ open, onClose, plan, onConfirm, loading }: PaymentModalP
       <Card className="w-full max-w-md border-0 shadow-elevated bg-card">
         {/* Header */}
         <div className="flex items-center justify-between p-6 border-b border-border">
-          <h2 className="text-lg font-semibold text-foreground">Complete Payment</h2>
+          <h2 className="text-lg font-semibold text-foreground">Confirm plan activation</h2>
           <button
             onClick={onClose}
             className="text-muted-foreground hover:text-foreground"
+            aria-label="Close"
           >
             <X className="h-5 w-5" />
           </button>
@@ -162,47 +160,15 @@ const PaymentModal = ({ open, onClose, plan, onConfirm, loading }: PaymentModalP
           </div>
         </div>
 
-        {/* Form */}
-        <div className="p-6 space-y-4">
-          <div>
-            <Label className="text-sm">Card Number</Label>
-            <Input
-              value={cardNumber}
-              onChange={(e) => setCardNumber(e.target.value.replace(/\D/g, '').slice(0, 16))}
-              placeholder="4242 4242 4242 4242"
-              className="mt-1.5 font-mono"
-            />
+        {/* Honest activation notice */}
+        <div className="p-6">
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-900">
+            <p className="font-medium">Billing is not connected yet</p>
+            <p className="mt-1 text-amber-800/90 leading-relaxed">
+              No payment gateway is configured, so no card details are requested and no money is
+              charged. Confirming records this plan as active on your workspace for testing.
+            </p>
           </div>
-
-          <div className="grid grid-cols-2 gap-3">
-            <div>
-              <Label className="text-sm">Expiry (MM/YY)</Label>
-              <Input
-                value={expiry}
-                onChange={(e) => {
-                  let v = e.target.value.replace(/\D/g, '').slice(0, 4);
-                  if (v.length >= 2) v = v.slice(0, 2) + '/' + v.slice(2);
-                  setExpiry(v);
-                }}
-                placeholder="12/25"
-                className="mt-1.5 font-mono"
-              />
-            </div>
-            <div>
-              <Label className="text-sm">CVV</Label>
-              <Input
-                value={cvv}
-                onChange={(e) => setCvv(e.target.value.replace(/\D/g, '').slice(0, 3))}
-                placeholder="123"
-                type="password"
-                className="mt-1.5 font-mono"
-              />
-            </div>
-          </div>
-
-          <p className="text-xs text-muted-foreground bg-accent/50 p-3 rounded-lg">
-            💡 <strong>Demo Mode:</strong> Use any card details above. In production, this would redirect to Razorpay.
-          </p>
         </div>
 
         {/* Actions */}
@@ -218,10 +184,10 @@ const PaymentModal = ({ open, onClose, plan, onConfirm, loading }: PaymentModalP
           <Button
             variant="hero"
             className="flex-1"
-            disabled={loading || !cardNumber || !expiry || !cvv}
+            disabled={loading}
             onClick={onConfirm}
           >
-            {loading ? "Processing..." : "Pay & Activate"}
+            {loading ? "Activating..." : "Activate for testing"}
           </Button>
         </div>
       </Card>
@@ -462,20 +428,28 @@ const Settings = () => {
                       <Label>PAN Number</Label>
                       <Input value={pan} onChange={(e) => setPan(e.target.value)} className="mt-1.5" />
                     </div>
-                    <div className="sm:col-span-2">
+                    <div className="sm:col-span-2 rounded-xl border border-slate-200 bg-slate-50/60 p-4">
                       <Label className="flex items-center gap-1.5">
-                        WhatsApp Phone Number ID
-                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-normal">REQUIRED FOR WEBHOOKS</Badge>
+                        WhatsApp connection
+                        <Badge variant="outline" className="text-[9px] h-4 px-1.5 font-normal">
+                          MANAGED IN INTEGRATIONS
+                        </Badge>
                       </Label>
-                      <Input 
-                        value={whatsappPhoneNumberId} 
-                        onChange={(e) => setWhatsappPhoneNumberId(e.target.value)} 
-                        className="mt-1.5 font-mono text-sm" 
-                        placeholder="e.g. 1064227266775850"
-                      />
-                      <p className="text-[11px] text-muted-foreground mt-1.5 italic">
-                        Found in Meta Developer Portal → WhatsApp → API Setup. Messages received on this ID will be routed to your inbox.
+                      <p className="mt-1.5 text-sm text-muted-foreground">
+                        WhatsApp, Messenger, Instagram, and Gmail credentials are verified and stored
+                        encrypted in Integrations. This legacy field is read-only so settings can no
+                        longer silently change your webhook routing.
                       </p>
+                      {whatsappPhoneNumberId ? (
+                        <p className="mt-2 font-mono text-xs text-foreground/80">
+                          Phone Number ID: {whatsappPhoneNumberId}
+                        </p>
+                      ) : null}
+                      <Button variant="outline" size="sm" className="mt-3" asChild>
+                        <Link to="/integrations">
+                          Open Integrations <ArrowRight className="h-3.5 w-3.5 ml-1" />
+                        </Link>
+                      </Button>
                     </div>
                   </div>
                 )}
@@ -900,7 +874,8 @@ const Settings = () => {
                   </div>
                 ) : (
                   <p className="text-sm text-muted-foreground p-3 rounded-lg bg-muted/50">
-                    No payment method on file. Add one after selecting a plan.
+                    No payment method is stored. Billing activation is testing-only until a payment
+                    provider is connected.
                   </p>
                 )}
               </GlassCard>
@@ -944,24 +919,22 @@ const Settings = () => {
                   </Button>
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-foreground">Two-Factor Authentication</p>
-                    <p className="text-xs text-muted-foreground">Extra layer of security on login</p>
+                    <p className="text-xs text-muted-foreground">
+                      Not available yet. This toggle is disabled until verification is implemented.
+                    </p>
                   </div>
-                  <Switch
-                    checked={twoFactor}
-                    onCheckedChange={async (v) => {
-                      setTwoFactor(v);
-                      await save('security', { twoFactorEnabled: v });
-                    }}
-                  />
+                  <Switch checked={twoFactor} disabled aria-label="Two-factor authentication (not available yet)" />
                 </div>
                 <Separator />
-                <div className="flex items-center justify-between">
+                <div className="flex items-center justify-between gap-4">
                   <div>
                     <p className="text-sm font-medium text-foreground">Login Alerts</p>
-                    <p className="text-xs text-muted-foreground">Notify me of new sign-ins</p>
+                    <p className="text-xs text-muted-foreground">
+                      Preference is saved, but alert delivery is not configured yet.
+                    </p>
                   </div>
                   <Switch
                     checked={loginAlerts}
@@ -969,6 +942,7 @@ const Settings = () => {
                       setLoginAlerts(v);
                       await save('security', { loginAlerts: v });
                     }}
+                    aria-label="Login alerts preference"
                   />
                 </div>
               </div>

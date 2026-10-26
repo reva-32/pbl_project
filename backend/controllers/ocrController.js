@@ -4,8 +4,7 @@ const path = require('path');
 const pdf = require('pdf-parse');
 const DecisionEvent = require('../models/DecisionEvent');
 const { ingestData } = require('./ingestController'); 
-const Groq = require('groq-sdk');
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
+const { getGroqClient } = require('../services/aiClassifier');
 
 // Mock Request/Response for internal call (Kept exactly as is)
 const internalIngest = async (text, type, filename, userId, extraMetadata = {}) => {
@@ -117,7 +116,8 @@ exports.processImage = async (req, res) => {
         // Clean up the text
         const cleanedText = textToIngest.replace(/\n\s*\n/g, '\n').trim();
 
-        // AI Analysis using Groq
+        // AI Analysis using Groq (optional — OCR still works without a key)
+        const groq = getGroqClient();
         console.log("🤖 [Groq] Analyzing document...");
         const aiPrompt = `
         Analyze this OCR text. Return a JSON object:
@@ -133,6 +133,7 @@ exports.processImage = async (req, res) => {
         let extractedMetadata = {};
 
         try {
+            if (!groq) throw new Error('AI analysis is not configured');
             const chatCompletion = await groq.chat.completions.create({
                 messages: [{ role: 'user', content: aiPrompt }],
                 model: 'llama-3.3-70b-versatile',

@@ -9,6 +9,11 @@ export default defineConfig({
     globals: true,
     setupFiles: ["./src/test/setup.ts"],
     include: ["src/**/*.{test,spec}.{ts,tsx}"],
+    // The default worker pool can hang on low-RAM Windows machines.
+    // A single fork keeps `npm test` reliable on a 4 GB laptop.
+    pool: "forks",
+    poolOptions: { forks: { singleFork: true } },
+    testTimeout: 15000,
   },
   resolve: {
     alias: { "@": path.resolve(__dirname, "./src") },

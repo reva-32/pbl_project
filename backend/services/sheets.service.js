@@ -1,16 +1,38 @@
 const { google } = require('googleapis');
 
-const auth = new google.auth.GoogleAuth({
-  credentials: {
-    project_id: process.env.GOOGLE_PROJECT_ID,
-    client_email: process.env.GOOGLE_CLIENT_EMAIL,
-    private_key: process.env.GOOGLE_PRIVATE_KEY.replace(/\\n/g, '\n'),
-  },
-  scopes: ['https://www.googleapis.com/auth/spreadsheets'],
-});
+// Build the service-account auth lazily. If Sheets credentials are absent the
+// rest of the API (auth, inbox, OCR…) must still boot normally.
+let auth = null;
+function getAuth() {
+  if (auth) return auth;
+
+  const scopes = ['https://www.googleapis.com/auth/spreadsheets'];
+  const keyFile = process.env.GOOGLE_APPLICATION_CREDENTIALS;
+  const clientEmail = process.env.GOOGLE_CLIENT_EMAIL;
+  const privateKey = process.env.GOOGLE_PRIVATE_KEY;
+
+  if (clientEmail && privateKey) {
+    auth = new google.auth.GoogleAuth({
+      credentials: {
+        project_id: process.env.GOOGLE_PROJECT_ID,
+        client_email: clientEmail,
+        private_key: privateKey.replace(/\\n/g, '\n'),
+      },
+      scopes,
+    });
+    return auth;
+  }
+
+  if (keyFile) {
+    auth = new google.auth.GoogleAuth({ keyFile, scopes });
+    return auth;
+  }
+
+  throw new Error('Google Sheets credentials are not configured');
+}
 
 async function getSheetsClient() {
-  const client = await auth.getClient();
+  const client = await getAuth().getClient();
   return google.sheets({ version: 'v4', auth: client });
 }
 

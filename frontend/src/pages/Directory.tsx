@@ -39,7 +39,7 @@ const Directory = () => {
     }
     setIsCreating(true);
 
-    const loadingToast = toast.loading("Adding vendor and syncing to Google Sheets...");
+    const loadingToast = toast.loading("Adding vendor…");
     const { error } = await apiFetch<any>("/vendors", {
       method: "POST",
       body: JSON.stringify({ ...newVendor, reliabilityScore: 100 }),
@@ -51,7 +51,7 @@ const Directory = () => {
       toast.error(error || "Failed to create vendor");
     } else {
       toast.dismiss(loadingToast);
-      toast.success("Vendor added & synced successfully!");
+      toast.success("Vendor added");
       setNewVendor({ name: "", email: "", phone: "" });
       loadVendors();
     }
@@ -74,7 +74,7 @@ const Directory = () => {
             Vendor directory
           </h2>
           <p className="text-sm sm:text-base text-muted-foreground mt-2 max-w-2xl leading-relaxed">
-            Manage your vendors. Changes are automatically dual-synced to your Google Wallet / Sheets.
+            Manage your vendors. Records are also synced to Google Sheets when that integration is connected.
           </p>
         </div>
 

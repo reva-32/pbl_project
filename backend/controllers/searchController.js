@@ -1,11 +1,9 @@
 const DecisionEvent = require('../models/DecisionEvent');
 const User          = require('../models/user');
-const Groq          = require('groq-sdk');
 const { getEmbedding } = require('../services/ragService');
+const { getGroqClient } = require('../services/aiClassifier');
 const { createInvoicePDF } = require('../utils/invoiceGenerator');
 const { calculateProjection } = require('../utils/financialTools');
-
-const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 exports.searchEvents = async (req, res) => {
     try {
@@ -131,6 +129,11 @@ exports.searchEvents = async (req, res) => {
 
         4. **FOLLOW-UPS (MANDATORY FOR TEXT ANSWERS)**: Always end your text response with 2 to 3 insightful follow-up questions for ${ownerName}. Format them as bullet points under the exact bold heading: "**Suggested Follow-ups:**".
         `;
+
+        const groq = getGroqClient();
+        if (!groq) {
+            return res.status(503).json({ error: 'AI service is not configured. Add GROQ_API_KEY on the server.' });
+        }
 
         let chatCompletion;
         try {

@@ -89,6 +89,37 @@ const FinancialHub = () => {
     );
   };
 
+  const exportGstReturns = () => {
+    if (!gstReturns.length) {
+      toast.error("There are no GST records to export yet.");
+      return;
+    }
+    const escape = (value: unknown) => {
+      const text = String(value ?? "");
+      return /[",\n]/.test(text) ? `"${text.replace(/"/g, '""')}"` : text;
+    };
+    const rows = [
+      ["Period", "Return type", "Status", "Recorded at"],
+      ...gstReturns.map((r) => [
+        r.content?.month || new Date(r.timestamp).toLocaleDateString(),
+        r.content?.type || "GSTR-3B",
+        r.status || "",
+        r.timestamp ? new Date(r.timestamp).toISOString() : "",
+      ]),
+    ];
+    const csv = rows.map((row) => row.map(escape).join(",")).join("\r\n");
+    const blob = new Blob([`\uFEFF${csv}`], { type: "text/csv;charset=utf-8;" });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = `gst-returns-${new Date().toISOString().slice(0, 10)}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    URL.revokeObjectURL(url);
+    toast.success("GST returns exported as CSV");
+  };
+
   const totalRevenue = invoices.reduce((sum, inv) => sum + (parseFloat(inv.content?.amount) || 0), 0);
   const outstandingCount = invoices.filter(
     (inv) => inv.status !== "PAID" && inv.status !== "APPROVED",
@@ -369,8 +400,17 @@ const FinancialHub = () => {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" className="rounded-xl">
-                          Generate report
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          className="rounded-xl"
+                          onClick={exportGstReturns}
+                          disabled={!gstReturns.length}
+                          aria-label={`Export GST return for ${
+                            r.content?.month || new Date(r.timestamp).toLocaleDateString()
+                          }`}
+                        >
+                          <Download className="h-3.5 w-3.5 mr-1.5" /> Export CSV
                         </Button>
                       </TableCell>
                     </TableRow>
@@ -451,6 +491,8 @@ const FinancialHub = () => {
                           variant="outline"
                           size="sm"
                           className="rounded-xl gap-1.5"
+                          disabled={!inv.content?.downloadUrl}
+                          title={inv.content?.downloadUrl ? "Open invoice PDF" : "No PDF stored for this invoice"}
                           onClick={() => {
                             const href = resolveInvoicePdfUrl(inv.content?.downloadUrl);
                             if (href) window.open(href, "_blank", "noopener,noreferrer");

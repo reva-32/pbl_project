@@ -9,6 +9,7 @@ import { Progress } from "@/components/ui/progress";
 import { GlassCard } from "@/components/ui/glass-card";
 import { EditDraftModal } from "@/components/EditDraftModal";
 import { AnimatedCounter } from "@/components/AnimatedCounter";
+import { toast } from "sonner";
 import {
   Clock,
   CheckCircle,
@@ -103,8 +104,45 @@ const Dashboard = () => {
   const [resolvedCount, setResolvedCount] = useState(0);
   const [aiProcessedToday, setAiProcessedToday] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [sendingId, setSendingId] = useState<string | null>(null);
+  const [dismissingId, setDismissingId] = useState<string | null>(null);
 
   const pendingCount = requests.length;
+
+  async function sendReply(eventId: string, text: string) {
+    setSendingId(eventId);
+    try {
+      const { error } = await apiFetch<{ success: boolean }>("/messages/reply", {
+        method: "POST",
+        body: JSON.stringify({ eventId, message: text }),
+      });
+      if (error) {
+        toast.error(error);
+        throw new Error(error);
+      }
+      toast.success("Reply sent");
+      setRequests((prev) => prev.filter((request) => request.id !== eventId));
+      setResolvedCount((count) => count + 1);
+      setEditModal({ open: false, request: null });
+    } finally {
+      setSendingId(null);
+    }
+  }
+
+  async function dismissRequest(eventId: string) {
+    setDismissingId(eventId);
+    const { error } = await apiFetch(`/events/${eventId}/status`, {
+      method: "PATCH",
+      body: JSON.stringify({ status: "ARCHIVED" }),
+    });
+    setDismissingId(null);
+    if (error) {
+      toast.error(error);
+      return;
+    }
+    setRequests((prev) => prev.filter((request) => request.id !== eventId));
+    toast.success("Dismissed from the dashboard");
+  }
 
   const efficiencyScore = useMemo(() => {
     const base = 82;
@@ -193,7 +231,12 @@ const Dashboard = () => {
           setEvents(data);
 
           const msgs = data
-            .filter((d: any) => d.type === "CUSTOMER_MSG")
+            .filter(
+              (d: any) =>
+                d.type === "CUSTOMER_MSG" &&
+                String(d.status || "PENDING").toUpperCase() === "PENDING" &&
+                d.content?.direction !== "outbound",
+            )
             .map((d: any) => ({
               id: d._id,
               name: d.content?.name || "Customer",
@@ -201,7 +244,7 @@ const Dashboard = () => {
               time: d.timestamp ? new Date(d.timestamp).toLocaleTimeString() : "Recent",
               initials: (d.content?.name || "CC").substring(0, 2).toUpperCase(),
               message: d.content?.message || d.content?.text || "New message received",
-              aiDraft: d.content?.aiDraft || "Generating draft...",
+              aiDraft: d.content?.aiDraft || "",
             }));
           setRequests(msgs);
 
@@ -285,7 +328,7 @@ const Dashboard = () => {
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-40" />
                 <span className="relative inline-flex rounded-full h-2 w-2 bg-primary" />
               </span>
-              AI online
+              AI workspace
             </Badge>
           </div>
         </motion.div>
@@ -317,7 +360,7 @@ const Dashboard = () => {
             {
               label: "Response efficiency",
               value: efficiencyScore,
-              sub: "Model-assisted throughput",
+              sub: "Estimated from recent activity",
               icon: Timer,
               tone: "text-amber-800 bg-amber-500/10",
               suffix: "%",
@@ -491,35 +534,56 @@ const Dashboard = () => {
                                   expanded ? "" : "line-clamp-2"
                                 }`}
                               >
-                                {req.aiDraft}
+                                {req.aiDraft || "No AI draft is available for this message. Use Edit draft to write a reply."}
                               </p>
-                              <button
-                                type="button"
-                                onClick={() => setExpandedId(expanded ? null : req.id)}
-                                className="text-[11px] text-primary font-medium mt-1 flex items-center gap-0.5 hover:underline"
-                              >
-                                {expanded ? (
-                                  <>
-                                    <ChevronUp className="h-3 w-3" /> Show less
-                                  </>
-                                ) : (
-                                  <>
-                                    <ChevronDown className="h-3 w-3" /> Read full reply
-                                  </>
-                                )}
-                              </button>
+                              {req.aiDraft ? (
+                                <button
+                                  type="button"
+                                  onClick={() => setExpandedId(expanded ? null : req.id)}
+                                  className="text-[11px] text-primary font-medium mt-1 flex items-center gap-0.5 hover:underline"
+                                >
+                                  {expanded ? (
+                                    <>
+                                      <ChevronUp className="h-3 w-3" /> Show less
+                                    </>
+                                  ) : (
+                                    <>
+                                      <ChevronDown className="h-3 w-3" /> Read full reply
+                                    </>
+                                  )}
+                                </button>
+                              ) : null}
                             </div>
                           </div>
                         </div>
 
                         <div className="flex items-center gap-2 px-4 sm:px-5 pb-4 pt-0 flex-wrap">
-                          <Button variant="success" size="sm" className="h-8 text-xs rounded-lg">
-                            <Check className="h-3 w-3" /> Approve &amp; Send
+                          <Button
+                            variant="success"
+                            size="sm"
+                            className="h-8 text-xs rounded-lg"
+                            disabled={sendingId === req.id || !String(req.aiDraft || "").trim()}
+                            onClick={() => {
+                              const draft = String(req.aiDraft || "").trim();
+                              if (!draft || /generating draft/i.test(draft)) {
+                                toast.error("No AI draft is available yet. Edit the reply to write one.");
+                                return;
+                              }
+                              sendReply(req.id, draft).catch(() => {});
+                            }}
+                          >
+                            {sendingId === req.id ? (
+                              <span className="h-3 w-3 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                            ) : (
+                              <Check className="h-3 w-3" />
+                            )}
+                            {sendingId === req.id ? "Sending…" : "Approve & Send"}
                           </Button>
                           <Button
                             variant="outline"
                             size="sm"
                             className="h-8 text-xs rounded-lg"
+                            disabled={sendingId === req.id}
                             onClick={() => setEditModal({ open: true, request: req })}
                           >
                             <Pencil className="h-3 w-3" /> Edit draft
@@ -527,9 +591,17 @@ const Dashboard = () => {
                           <Button
                             variant="ghost"
                             size="icon"
+                            aria-label={`Dismiss message from ${req.name}`}
+                            title="Dismiss from dashboard"
                             className="h-8 w-8 rounded-lg text-muted-foreground hover:text-destructive ml-auto"
+                            disabled={dismissingId === req.id || sendingId === req.id}
+                            onClick={() => dismissRequest(req.id)}
                           >
-                            <Trash2 className="h-3.5 w-3.5" />
+                            {dismissingId === req.id ? (
+                              <span className="h-3.5 w-3.5 rounded-full border-2 border-current border-t-transparent animate-spin" />
+                            ) : (
+                              <Trash2 className="h-3.5 w-3.5" />
+                            )}
                           </Button>
                         </div>
                       </Card>
@@ -654,6 +726,7 @@ const Dashboard = () => {
           platform={editModal.request.platform}
           customerName={editModal.request.name}
           initialDraft={editModal.request.aiDraft}
+          onSend={(text) => sendReply(editModal.request.id, text)}
         />
       )}
     </AppLayout>

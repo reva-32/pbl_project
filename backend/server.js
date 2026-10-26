@@ -12,13 +12,18 @@ process.on('unhandledRejection', (reason, promise) => {
   console.error('🔥 UNHANDLED REJECTION at:', promise, 'reason:', reason);
 });
 
-const requiredEnv = ['MONGO_URI', 'JWT_SECRET', 'GROQ_API_KEY'];
+const requiredEnv = ['MONGO_URI', 'JWT_SECRET'];
 requiredEnv.forEach(key => {
   if (!process.env[key]) {
     console.error(`❌ FATAL ERROR: Missing environment variable: ${key}`);
     process.exit(1);
   }
 });
+
+// AI classification degrades gracefully without a key; do not block the API.
+if (!process.env.GROQ_API_KEY) {
+  console.warn('⚠️  GROQ_API_KEY is not set — AI summaries will use the safe fallback.');
+}
 
 const express   = require('express');
 console.log('✅ Express loaded');
@@ -46,6 +51,8 @@ const webhookRoutes = require('./routes/webhook');
 console.log('   - Webhook routes ready');
 const messageRoutes = require('./routes/messages');
 console.log('   - Message routes ready');
+const integrationRoutes = require('./routes/integrations');
+console.log('   - Integration routes ready');
 
 
 const app  = express();
@@ -59,24 +66,34 @@ const invoicesDir = path.join(__dirname, 'public', 'invoices');
 });
 
 // ── Global Middleware ─────────────────────────────────────────────────────────
-const allowedOrigins = [
+// Exact origins only. A wildcard on *.vercel.app / *.onrender.com would let
+// any unrelated deployment read authenticated API responses.
+const envConfig = require('./config/env');
+const allowedOrigins = new Set([
   'http://localhost:5173',
   'http://localhost:8080',
-  process.env.FRONTEND_URL, // e.g., 'https://msme-360.vercel.app'
-].filter(Boolean);
+  process.env.FRONTEND_URL,
+  envConfig.frontendUrl,
+  ...envConfig.extraOrigins.split(',').map((origin) => origin.trim()),
+].filter(Boolean));
 
-app.use(cors({ 
+app.use(cors({
   origin: (origin, callback) => {
-    if (!origin || allowedOrigins.includes(origin) || origin.includes('vercel.app') || origin.includes('onrender.com')) {
+    // Same-origin requests and server-to-server calls have no Origin header.
+    if (!origin || allowedOrigins.has(origin)) {
       callback(null, true);
     } else {
       console.warn(`🚫 CORS Blocked Origin: ${origin}`);
       callback(new Error('Not allowed by CORS'));
     }
   },
-  credentials: true 
+  credentials: true,
 }));
-app.use(express.json());
+// Keep the raw request body so webhook handlers can verify provider signatures.
+app.use(express.json({
+  limit: '1mb',
+  verify: (req, _res, buf) => { req.rawBody = buf; },
+}));
 app.use(express.urlencoded({ extended: true }));
 
 // ── Serve static invoices (PDF downloads) ────────────────────────────────────
@@ -91,6 +108,7 @@ app.use('/api/search',    searchRoutes);    // POST /api/search
 app.use('/api',           entitiesRoutes);  // GET/POST /api/vendors, /customers, /inventory
 app.use('/api/webhook',   webhookRoutes);   // Webhook (Meta)
 app.use('/api/messages',  messageRoutes);   // Outgoing Replies
+app.use('/api/integrations', integrationRoutes); // Channel connections (OAuth/manual)
 
 
 // ── Health check ──────────────────────────────────────────────────────────────

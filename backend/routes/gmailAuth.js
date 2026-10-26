@@ -15,4 +15,7 @@ router.get('/status', authMiddleware, gmailAuthController.gmailStatus);
 // POST /api/webhook/gmail/auth/sync  — manually pull last N inbox emails
 router.post('/sync', authMiddleware, gmailAuthController.manualSync);
 
+// DELETE /api/webhook/gmail/auth  — disconnect Gmail for this tenant
+router.delete('/', authMiddleware, gmailAuthController.disconnectGmail);
+
 module.exports = router;

@@ -30,6 +30,10 @@ const Auth = () => {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (!isLogin && password.length < 8) {
+      toast.error("Password must be at least 8 characters.");
+      return;
+    }
     setIsLoading(true);
 
     const endpoint = isLogin ? "login" : "signup";

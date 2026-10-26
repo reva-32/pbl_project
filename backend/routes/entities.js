@@ -47,10 +47,14 @@ router.get('/events', authMiddleware, async (req, res) => {
 
 router.patch('/events/:id/status', authMiddleware, async (req, res) => {
     try {
-        const { status } = req.body;
+        const allowed = ['PENDING', 'PAID', 'DISCARDED', 'APPROVED', 'REJECTED', 'EXECUTED', 'RESOLVED', 'ARCHIVED'];
+        const nextStatus = String(req.body?.status || '').toUpperCase();
+        if (!allowed.includes(nextStatus)) {
+            return res.status(400).json({ error: 'Invalid status value' });
+        }
         const event = await DecisionEvent.findOneAndUpdate(
             { _id: req.params.id, userId: req.userId },
-            { status: status.toUpperCase() },
+            { status: nextStatus },
             { new: true }
         );
         if (!event) return res.status(404).json({ error: 'Event not found' });
