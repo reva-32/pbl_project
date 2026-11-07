@@ -82,10 +82,8 @@ async function retainBusinessMemory(userId, content, metadata = {}) {
     body: {
       items: [{
         content: content.trim().slice(0, 12000),
-        metadata: {
-          source: 'msme360',
-          ...metadata,
-        },
+        context: `msme360:${String(metadata.source || 'business_event').slice(0, 80)}`,
+        timestamp: new Date().toISOString(),
       }],
     },
   });
