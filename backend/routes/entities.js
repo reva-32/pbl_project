@@ -79,8 +79,8 @@ router.patch('/events/:id/status', authMiddleware, async (req, res) => {
             || event.content?.vendorName
             || event.content?.description
             || event.type
-        ).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[email redacted]')
-         .replace(/\\b(?:\\+?\\d[\\d\\s().-]{7,}\\d)\\b/g, '[phone redacted]')
+        ).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email redacted]')
+         .replace(/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g, '[phone redacted]')
          .slice(0, 300);
         const amount = event.content?.amount ?? event.content?.grandTotal;
         const amountText = amount !== undefined && amount !== null ? ` Amount: ${String(amount).slice(0, 80)}.` : '';
