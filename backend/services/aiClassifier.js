@@ -10,7 +10,7 @@ function getGroqClient() {
 }
 
 // Use the smallest/fastest model to preserve daily token quota
-const MODEL = 'llama-3.1-8b-instant';
+const MODEL = process.env.GROQ_CLASSIFIER_MODEL || 'openai/gpt-oss-20b';
 const MAX_INPUT_CHARS = 400; // ~100 tokens — keep classification cheap
 const FALLBACK = { summary: 'Auto-summary unavailable.', category: 'GENERAL', priority: 'LOW' };
 
