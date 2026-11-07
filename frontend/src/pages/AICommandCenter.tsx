@@ -75,7 +75,7 @@ function renderMarkdown(text: string) {
     const parts = value.split(/(\*\*[^*]+\*\*)/g).map((part, partIndex) =>
       part.startsWith("**") && part.endsWith("**") ? <strong key={partIndex} className="font-semibold text-foreground">{part.slice(2, -2)}</strong> : <span key={partIndex}>{part}</span>
     );
-    if (/^#{1,3}\s/.test(value)) return <h3 key={index} className="pt-2 text-base font-bold tracking-tight text-slate-900">{parts}</h3>;
+    if (/^#{1,3}\s/.test(value)) return <h3 key={index} className="pt-2 text-base font-bold tracking-tight text-slate-900">{value.replace(/^#{1,3}\s/, "").split(/(\*\*[^*]+\*\*)/g).map((part, i) => part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>)}</h3>;
     if (/^[-*•]\s/.test(value)) return <div key={index} className="flex gap-2 pl-1 text-sm leading-7 text-slate-700"><span className="mt-0.5 text-primary">•</span><span>{value.replace(/^[-*•]\s/, "").split(/(\*\*[^*]+\*\*)/g).map((part, i) => part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>)}</span></div>;
     if (/^\d+[.)]\s/.test(value)) return <div key={index} className="text-sm leading-7 text-slate-700">{parts}</div>;
     return <p key={index} className="text-sm leading-7 text-slate-700">{parts}</p>;
