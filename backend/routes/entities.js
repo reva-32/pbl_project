@@ -73,15 +73,9 @@ router.patch('/events/:id/status', authMiddleware, async (req, res) => {
         );
         if (!event) return res.status(404).json({ error: 'Event not found' });
 
-        const eventLabel = String(
-            event.content?.client
-            || event.content?.vendor
-            || event.content?.vendorName
-            || event.content?.description
-            || event.type
-        ).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email redacted]')
-         .replace(/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g, '[phone redacted]')
-         .slice(0, 300);
+        // Do not retain client/vendor names or free-form descriptions here: these can
+        // contain personal data. The tenant-scoped record ID is sufficient provenance.
+        const eventLabel = `record ${String(event._id)}`;
         const amount = event.content?.amount ?? event.content?.grandTotal;
         const amountText = amount !== undefined && amount !== null ? ` Amount: ${String(amount).slice(0, 80)}.` : '';
 
