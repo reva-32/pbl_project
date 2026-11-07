@@ -142,7 +142,7 @@ exports.searchEvents = async (req, res) => {
                     { role: 'system', content: systemPrompt },
                     { role: 'user', content: query },
                 ],
-                model: 'llama-3.3-70b-versatile',
+                model: process.env.GROQ_CHAT_MODEL || 'openai/gpt-oss-120b',
                 temperature: 0.2,
                 max_tokens: 1500,
             });
