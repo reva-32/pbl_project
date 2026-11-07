@@ -90,8 +90,6 @@ async function recallBusinessMemories(userId, query, options = {}) {
       query: query.trim().slice(0, 2000),
       ...(Array.isArray(options.types) ? { types: options.types } : {}),
       ...(typeof options.preferObservations === 'boolean' ? { prefer_observations: options.preferObservations } : {}),
-      // Bank isolation is the primary boundary; tag filtering is an additional guard.
-      tags: [`tenant:${String(userId).toLowerCase()}`],
     },
   });
 
