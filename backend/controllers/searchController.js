@@ -146,9 +146,9 @@ exports.searchEvents = async (req, res) => {
                 const reflection = await reflectOnBusinessMemory(req.userId, query);
                 if (reflection?.text) {
                     const evidence = reflection.memories.length
-                        ? '\\nSupporting memory evidence:\\n' + reflection.memories
+                        ? '\nSupporting memory evidence:\n' + reflection.memories
                             .map((memory) => `- [${memory.type}] ${memory.text}`)
-                            .join('\\n')
+                            .join('\n')
                         : '';
                     hindsightReflection = `${reflection.text}${evidence}`.slice(0, 8000);
                 }
