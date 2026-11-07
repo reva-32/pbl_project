@@ -60,4 +60,17 @@ UserSchema.index(
   }
 );
 
+// Gmail address is optional until the user connects Gmail. Only actual string
+// addresses participate in uniqueness; null values are intentionally excluded.
+UserSchema.index(
+  { googleEmail: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      googleEmail: { $type: "string" }
+    },
+    name: "uniq_googleEmail_string"
+  }
+);
+
 module.exports = mongoose.model('User', UserSchema);
