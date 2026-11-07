@@ -3,7 +3,7 @@ const REQUEST_TIMEOUT_MS = 10000;
 
 function getConfig() {
   const apiKey = process.env.HINDSIGHT_API_KEY;
-  const baseUrl = (process.env.HINDSIGHT_BASE_URL || DEFAULT_BASE_URL).replace(/\\/+$/, '');
+  const baseUrl = (process.env.HINDSIGHT_BASE_URL || DEFAULT_BASE_URL).replace(/\/+$/, '');
 
   if (!apiKey) return null;
   return { apiKey, baseUrl };
