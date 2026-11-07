@@ -25,8 +25,8 @@ exports.ingestData = async (req, res) => {
 
         // Keep the external memory useful while avoiding common direct contact identifiers.
         const memoryText = String(text)
-            .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[email redacted]')
-            .replace(/\\b(?:\\+?\\d[\\d\\s().-]{7,}\\d)\\b/g, '[phone redacted]')
+            .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email redacted]')
+            .replace(/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g, '[phone redacted]')
             .slice(0, 4000);
         retainBusinessMemory(req.userId, `Business record (${type}): ${memoryText}`, {
             source: `record_${String(type).toLowerCase()}`,
