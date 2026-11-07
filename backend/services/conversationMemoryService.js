@@ -22,6 +22,9 @@ function shouldRetainConversationMessage(message) {
 }
 
 function normalizeConversationHistory(history) {
+  if (typeof history === 'string') {
+    try { history = JSON.parse(history); } catch { return []; }
+  }
   if (!Array.isArray(history)) return [];
   return history
     .slice(-10)
