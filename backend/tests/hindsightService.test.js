@@ -88,6 +88,18 @@ test('recalls only documented options and returns result list', async () => {
   });
 });
 
+test('returns an empty recall list when the API response has no results array', async () => {
+  process.env.HINDSIGHT_API_KEY = 'test-key';
+  global.fetch = async () => new Response(JSON.stringify({ results: null }), { status: 200 });
+
+  const service = loadService();
+  const results = await service.recallBusinessMemories(
+    '507f1f77bcf86cd799439011',
+    'business history',
+  );
+  assert.deepEqual(results, []);
+});
+
 test('reflect returns the Hindsight response', async () => {
   process.env.HINDSIGHT_API_KEY = 'test-key';
   global.fetch = async (_url, options) => {
