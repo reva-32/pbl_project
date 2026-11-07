@@ -49,7 +49,11 @@ test('retains content in the authenticated user bank with source context', async
   const result = await service.retainBusinessMemory(
     '507f1f77bcf86cd799439011',
     'Customer paid invoice INV-10',
-    { source: 'invoice_paid' },
+    {
+      source: 'invoice_paid',
+      documentId: '507f1f77bcf86cd799439099',
+      timestamp: '2026-11-07T10:30:00.000Z',
+    },
   );
 
   assert.equal(result.data.items_count, 1);
@@ -58,6 +62,8 @@ test('retains content in the authenticated user bank with source context', async
   const body = JSON.parse(request.options.body);
   assert.equal(body.items[0].content, 'Customer paid invoice INV-10');
   assert.equal(body.items[0].context, 'msme360:invoice_paid');
+  assert.equal(body.items[0].document_id, '507f1f77bcf86cd799439099');
+  assert.equal(body.items[0].timestamp, '2026-11-07T10:30:00.000Z');
 });
 
 test('recalls only documented options and returns result list', async () => {
