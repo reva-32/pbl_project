@@ -4,6 +4,35 @@ const IntegrationConnection = require('../models/integrationConnection');
 const { classifyMessage } = require('./aiClassifier');
 const { getEmbedding } = require('./ragService');
 const { findOrCreateCustomer } = require('./customerService');
+const { retainBusinessMemory } = require('./hindsightService');
+
+function redactContactDetails(value) {
+  return String(value || '')
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[email redacted]')
+    .replace(/\\b(?:\\+?\\d[\\d\\s().-]{7,}\\d)\\b/g, '[phone redacted]');
+}
+
+function retainMessageMemory(retainer, userId, event, source) {
+  const content = event?.content || {};
+  const safeText = redactContactDetails(content.text).slice(0, 2500);
+  const summary = [
+    `Customer interaction via ${content.platform || 'business channel'} (${content.direction || 'inbound'}).`,
+    content.category ? `Category: ${content.category}.` : '',
+    content.priority ? `Priority: ${content.priority}.` : '',
+    safeText ? `Message: ${safeText}` : '',
+  ].filter(Boolean).join(' ');
+
+  // Memory is secondary: never delay or fail the persisted inbox event.
+  Promise.resolve()
+    .then(() => retainer(userId, summary, {
+      source,
+      documentId: String(event._id),
+      timestamp: new Date(event.timestamp || Date.now()).toISOString(),
+    }))
+    .catch((error) => {
+      console.error('⚠️ Hindsight message retention failed:', error.message);
+    });
+}
 
 const CHANNEL_LABELS = {
   gmail: 'Email',
@@ -71,6 +100,7 @@ async function saveInboundMessage(input, deps = {}) {
     ConnectionModel = IntegrationConnection,
     classifier = classifyMessage,
     embedder = getEmbedding,
+    hindsightRetainer = retainBusinessMemory,
   } = deps;
 
   const {
@@ -152,6 +182,8 @@ async function saveInboundMessage(input, deps = {}) {
       timestamp: timestamp ? new Date(timestamp) : new Date(),
     });
 
+    retainMessageMemory(hindsightRetainer, userId, event, 'customer_message_inbound');
+
     if (ConnectionModel && accountId) {
       ConnectionModel.updateOne(
         { userId, provider, externalAccountId: String(accountId) },
@@ -192,6 +224,7 @@ async function recordOutboundMessage({
   const {
     DecisionEventModel = DecisionEvent,
     embedder = getEmbedding,
+    hindsightRetainer = retainBusinessMemory,
   } = deps;
 
   const embedding = await embedder(`Outbound ${channelLabel(provider)} message to ${recipient || 'customer'}: ${text}`);
@@ -217,7 +250,7 @@ async function recordOutboundMessage({
     metadata,
   };
 
-  return DecisionEventModel.create({
+  const event = await DecisionEventModel.create({
     userId,
     type: 'CUSTOMER_MSG',
     content,
@@ -225,6 +258,12 @@ async function recordOutboundMessage({
     status: deliveryStatus === 'failed' ? 'PENDING' : 'RESOLVED',
     timestamp: new Date(),
   });
+
+  // Only successful replies become business memories; failed sends are not customer communications.
+  if (deliveryStatus === 'sent') {
+    retainMessageMemory(hindsightRetainer, userId, event, 'customer_message_outbound');
+  }
+  return event;
 }
 
 async function updateDeliveryStatus({ userId, provider, providerMessageId, deliveryStatus, error = null }, deps = {}) {
