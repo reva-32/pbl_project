@@ -72,6 +72,35 @@ router.patch('/events/:id/status', authMiddleware, async (req, res) => {
             { new: true }
         );
         if (!event) return res.status(404).json({ error: 'Event not found' });
+
+        const eventLabel = String(
+            event.content?.client
+            || event.content?.vendor
+            || event.content?.vendorName
+            || event.content?.description
+            || event.type
+        ).replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[email redacted]')
+         .replace(/\\b(?:\\+?\\d[\\d\\s().-]{7,}\\d)\\b/g, '[phone redacted]')
+         .slice(0, 300);
+        const amount = event.content?.amount ?? event.content?.grandTotal;
+        const amountText = amount !== undefined && amount !== null ? ` Amount: ${String(amount).slice(0, 80)}.` : '';
+
+        // Use a status-specific document ID so a later status change does not overwrite
+        // the original invoice/order memory. Repeated webhook/UI updates remain idempotent.
+        Promise.resolve()
+            .then(() => retainBusinessMemory(
+                req.userId,
+                `Business event status updated. Type: ${event.type}. Reference: ${eventLabel}. New status: ${nextStatus}.${amountText}`,
+                {
+                    source: 'business_event_status_updated',
+                    documentId: `status-${event._id}-${nextStatus}`,
+                    timestamp: new Date().toISOString(),
+                },
+            ))
+            .catch((error) => {
+                console.error('⚠️ Hindsight status retention failed:', error.message);
+            });
+
         res.json(event);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
