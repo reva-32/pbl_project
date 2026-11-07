@@ -166,6 +166,27 @@ test('retains successful outbound replies but not failed delivery attempts', asy
   assert.doesNotMatch(retained[0][1], /98765/);
 });
 
+test('Hindsight retention failure does not roll back an inbound message', async () => {
+  const models = createFakeModels();
+  const result = await saveInboundMessage({
+    userId: 'tenant-a',
+    provider: 'instagram',
+    accountId: 'ig-account',
+    externalMessageId: 'ig-1',
+    senderId: 'customer-id',
+    text: 'Can you share the order status?',
+  }, {
+    ...models,
+    classifier,
+    embedder,
+    hindsightRetainer: async () => { throw new Error('Hindsight unavailable'); },
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(result.duplicate, false);
+  assert.equal(models.events.length, 1);
+});
+
 test('duplicate webhook delivery is idempotent per tenant', async () => {
   const models = createFakeModels();
   const input = {
