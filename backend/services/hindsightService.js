@@ -69,6 +69,8 @@ async function retainBusinessMemory(userId, content, metadata = {}) {
       items: [{
         content: content.trim().slice(0, 12000),
         context: `msme360:${String(metadata.source || 'business_event').slice(0, 80)}`,
+        // Defense in depth: all tenant memories carry the authenticated tenant tag.
+        tags: [`tenant:${String(userId).toLowerCase()}`],
         timestamp: metadata.timestamp || new Date().toISOString(),
         ...(typeof metadata.documentId === 'string' && metadata.documentId.trim()
           ? { document_id: metadata.documentId.trim().slice(0, 200) }
@@ -88,6 +90,8 @@ async function recallBusinessMemories(userId, query, options = {}) {
       query: query.trim().slice(0, 2000),
       ...(Array.isArray(options.types) ? { types: options.types } : {}),
       ...(typeof options.preferObservations === 'boolean' ? { prefer_observations: options.preferObservations } : {}),
+      // Bank isolation is the primary boundary; tag filtering is an additional guard.
+      tags: [`tenant:${String(userId).toLowerCase()}`],
     },
   });
 
