@@ -4,6 +4,7 @@ const { getEmbedding } = require('../services/ragService');
 const { getGroqClient } = require('../services/aiClassifier');
 const { createInvoicePDF } = require('../utils/invoiceGenerator');
 const { calculateProjection } = require('../utils/financialTools');
+const { retainBusinessMemory } = require('../services/hindsightService');
 
 exports.searchEvents = async (req, res) => {
     try {
@@ -226,7 +227,8 @@ exports.searchEvents = async (req, res) => {
                         const invoiceText = `INVOICE: ${invoiceData.clientName} - Total: ${grandTotal.toFixed(2)}. Details: ${invoiceData.detailedDescription}`;
                         const invoiceEmbedding = await getEmbedding(invoiceText);
                         
-                        await new DecisionEvent({
+                        const invoiceTimestamp = new Date();
+                        const savedInvoiceEvent = await new DecisionEvent({
                             userId: req.userId,
                             type: 'INVOICE',
                             content: { 
@@ -236,9 +238,20 @@ exports.searchEvents = async (req, res) => {
                                 downloadUrl: pdfResult.downloadUrl // CRITICAL: Save relative path for frontend
                             },
                             embedding: invoiceEmbedding,
-                            timestamp: new Date(),
+                            timestamp: invoiceTimestamp,
                         }).save();
                         console.log('✅ Invoice record saved to database with grand total.');
+
+                        // Retain only minimal financial context; avoid sending client contact details or invoice documents.
+                        const invoiceMemory = `Invoice created for ${companyName}: total ${grandTotal.toFixed(2)} ${String(invoiceData.currency || 'INR').toUpperCase()}, tax rate ${invoiceData.taxRate}%.`;
+                        retainBusinessMemory(req.userId, invoiceMemory, {
+                            source: 'invoice_created',
+                            documentId: savedInvoiceEvent._id.toString(),
+                            timestamp: invoiceTimestamp.toISOString(),
+                        }).catch((hindsightError) => {
+                            // Hindsight is an optional memory layer and must never block invoice creation.
+                            console.error('⚠️ Hindsight invoice retention failed:', hindsightError.message);
+                        });
                     }
 
                     // Construct the full URL including the backend host
