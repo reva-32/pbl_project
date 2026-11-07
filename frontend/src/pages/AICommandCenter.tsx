@@ -171,6 +171,18 @@ const AICommandCenter = () => {
 
     const form = new FormData();
     form.append("query", content);
+    // Send only a bounded recent window. The backend validates roles/content,
+    // and derives the tenant identity exclusively from the authenticated JWT.
+    const conversationHistory = messages
+      .filter((message) => message.role === "user" || message.role === "ai")
+      .filter((message) => message.type !== "ocr_result")
+      .slice(-10)
+      .map((message) => ({
+        role: message.role === "user" ? "user" : "assistant",
+        content: message.content,
+      }));
+    form.append("conversationHistory", JSON.stringify(conversationHistory));
+    form.append("turnId", crypto.randomUUID());
     if (attachedFile) form.append("signature", attachedFile);
 
     const { data, error } = await apiFormFetch<AISearchResponse>("/search", form);
