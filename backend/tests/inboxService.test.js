@@ -110,7 +110,63 @@ test('stores one inbound message per tenant with channel metadata', async () => 
   assert.equal(result.event.content.customerId, 'cust-1');
 });
 
-test('duplicate webhook delivery is idempotent per tenant', async () => {
+test('retains privacy-filtered inbound message context without blocking inbox persistence', async () => {
+  const models = createFakeModels();
+  const retained = [];
+  await saveInboundMessage({
+    userId: 'tenant-a',
+    provider: 'gmail',
+    accountId: 'business@example.com',
+    externalMessageId: 'mail-1',
+    senderName: 'Customer Name',
+    senderEmail: 'customer@example.com',
+    senderPhone: '+91 98765 43210',
+    text: 'Please call me at +91 98765 43210 or email customer@example.com about my delayed order.',
+    timestamp: '2026-11-07T10:00:00.000Z',
+  }, {
+    ...models,
+    classifier,
+    embedder,
+    hindsightRetainer: async (...args) => { retained.push(args); },
+  });
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(models.events.length, 1);
+  assert.equal(retained.length, 1);
+  assert.equal(retained[0][0], 'tenant-a');
+  assert.match(retained[0][1], /delayed order/);
+  assert.doesNotMatch(retained[0][1], /customer@example.com|98765/);
+  assert.equal(retained[0][2].source, 'customer_message_inbound');
+  assert.equal(retained[0][2].documentId, 'evt-1');
+  assert.equal(retained[0][2].timestamp, '2026-11-07T10:00:00.000Z');
+});
+
+test('retains successful outbound replies but not failed delivery attempts', async () => {
+  const models = createFakeModels();
+  const retained = [];
+  const deps = {
+    DecisionEventModel: models.DecisionEventModel,
+    embedder,
+    hindsightRetainer: async (...args) => { retained.push(args); },
+  };
+
+  await recordOutboundMessage({
+    userId: 'tenant-a', provider: 'whatsapp', recipient: '+91 98765 43210',
+    text: 'Your order will arrive tomorrow.', deliveryStatus: 'sent',
+  }, deps);
+  await recordOutboundMessage({
+    userId: 'tenant-a', provider: 'whatsapp', recipient: '+91 98765 43210',
+    text: 'This message failed.', deliveryStatus: 'failed',
+  }, deps);
+
+  await new Promise((resolve) => setImmediate(resolve));
+  assert.equal(models.events.length, 2);
+  assert.equal(retained.length, 1);
+  assert.equal(retained[0][2].source, 'customer_message_outbound');
+  assert.doesNotMatch(retained[0][1], /98765/);
+});
+
+test('duplicate webhook delivery is idempotent per tenant', async () =>
   const models = createFakeModels();
   const input = {
     userId: 'tenant-a',
