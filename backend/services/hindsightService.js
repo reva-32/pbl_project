@@ -100,10 +100,41 @@ async function reflectOnBusinessMemory(userId, query) {
 
   const result = await hindsightRequest(`/v1/default/banks/${encodeURIComponent(bankId)}/reflect`, {
     method: 'POST',
-    body: { query: query.trim().slice(0, 2000) },
+    body: {
+      query: query.trim().slice(0, 2000),
+      max_tokens: 700,
+      include: { facts: {} },
+    },
   });
 
-  return result.configured ? result.data : null;
+  // The documented response's primary answer is "text". Reject malformed payloads.
+  if (!result.configured || typeof result.data?.text !== 'string' || !result.data.text.trim()) {
+    return null;
+  }
+
+  const memories = Array.isArray(result.data.memories)
+    ? result.data.memories
+    : Array.isArray(result.data.based_on?.memories)
+      ? result.data.based_on.memories
+      : [];
+
+  return {
+    text: result.data.text.trim().slice(0, 6000),
+    memories: memories
+      .filter((memory) => memory && typeof memory.text === 'string' && memory.text.trim())
+      .slice(0, 8)
+      .map((memory) => ({
+        text: memory.text.trim().slice(0, 500),
+        type: typeof memory.type === 'string' ? memory.type : 'memory',
+      })),
+  };
+}
+
+// Reflect is more expensive than Recall, so reserve it for questions that ask
+// for synthesis across business history rather than ordinary factual lookups.
+function isStrategicBusinessQuery(query) {
+  if (typeof query !== 'string' || query.trim().length < 12) return false;
+  return /\\b(trend|trends|pattern|patterns|recurr(?:ing|ently)|over time|histor(?:y|ical)|performance|analyse|analyze|analysis|insight|insights|recommend(?:ation|ations|ed)?|improv(?:e|ement|ements)|risk|risks|cash.?flow|profitabilit|vendor performance|supplier performance|customer behavio[u]?r|compare.*period|business health|what should i focus|strateg(?:y|ic))\\b/i.test(query);
 }
 
 module.exports = {
@@ -111,4 +142,5 @@ module.exports = {
   retainBusinessMemory,
   recallBusinessMemories,
   reflectOnBusinessMemory,
+  isStrategicBusinessQuery,
 };
