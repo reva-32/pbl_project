@@ -5,6 +5,20 @@ const Vendor = require('../models/vendor');
 const Customer = require('../models/customer');
 const Inventory = require('../models/inventory');
 const sheetsService = require('../services/sheets.service');
+const { retainBusinessMemory } = require('../services/hindsightService');
+
+function retainEntityMemory(userId, content, source, documentId, timestamp) {
+    // Retain operational attributes only; never send customer/vendor contact details or addresses.
+    Promise.resolve()
+        .then(() => retainBusinessMemory(userId, content, {
+            source,
+            documentId: String(documentId),
+            timestamp: new Date(timestamp || Date.now()).toISOString(),
+        }))
+        .catch((error) => {
+            console.error('⚠️ Hindsight entity retention failed:', error.message);
+        });
+}
 
 // ── GET Endpoints ────────────────────────────────────────────────────────────
 
@@ -58,6 +72,29 @@ router.patch('/events/:id/status', authMiddleware, async (req, res) => {
             { new: true }
         );
         if (!event) return res.status(404).json({ error: 'Event not found' });
+
+        // Do not retain client/vendor names or free-form descriptions here: these can
+        // contain personal data. The tenant-scoped record ID is sufficient provenance.
+        const eventLabel = `record ${String(event._id)}`;
+        const amount = event.content?.amount ?? event.content?.grandTotal;
+        const amountText = amount !== undefined && amount !== null ? ` Amount: ${String(amount).slice(0, 80)}.` : '';
+
+        // Use a status-specific document ID so a later status change does not overwrite
+        // the original invoice/order memory. Repeated webhook/UI updates remain idempotent.
+        Promise.resolve()
+            .then(() => retainBusinessMemory(
+                req.userId,
+                `Business event status updated. Type: ${event.type}. Reference: ${eventLabel}. New status: ${nextStatus}.${amountText}`,
+                {
+                    source: 'business_event_status_updated',
+                    documentId: `status-${event._id}-${nextStatus}`,
+                    timestamp: new Date().toISOString(),
+                },
+            ))
+            .catch((error) => {
+                console.error('⚠️ Hindsight status retention failed:', error.message);
+            });
+
         res.json(event);
     } catch (err) { res.status(500).json({ error: err.message }); }
 });
@@ -67,6 +104,13 @@ router.patch('/events/:id/status', authMiddleware, async (req, res) => {
 router.post('/vendors', authMiddleware, async (req, res) => {
     try {
         const vendor = await Vendor.create({ ...req.body, userId: req.userId });
+        retainEntityMemory(
+            req.userId,
+            `Vendor profile created: ${vendor.name}. Reliability score: ${vendor.reliabilityScore}/100. Average delivery time: ${vendor.avgDeliveryDays} days.`,
+            'vendor_profile_created',
+            vendor._id,
+            vendor.createdAt,
+        );
         res.status(201).json(vendor);
         
         // Background Dual-Sync
@@ -108,6 +152,13 @@ router.post('/customers', authMiddleware, async (req, res) => {
 router.post('/inventory', authMiddleware, async (req, res) => {
     try {
         const inventory = await Inventory.create({ ...req.body, userId: req.userId });
+        retainEntityMemory(
+            req.userId,
+            `Inventory item created: ${inventory.name}. SKU: ${inventory.sku || 'not set'}. Unit price: ${inventory.price}. Initial stock: ${inventory.stockLevel}. Vendor reference: ${inventory.vendorId || 'not assigned'}.`,
+            'inventory_item_created',
+            inventory._id,
+            inventory.createdAt,
+        );
         res.status(201).json(inventory);
 
         const User = require('../models/user');
