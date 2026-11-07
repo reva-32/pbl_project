@@ -166,7 +166,7 @@ test('retains successful outbound replies but not failed delivery attempts', asy
   assert.doesNotMatch(retained[0][1], /98765/);
 });
 
-test('duplicate webhook delivery is idempotent per tenant', async () =>
+test('duplicate webhook delivery is idempotent per tenant', async () => {
   const models = createFakeModels();
   const input = {
     userId: 'tenant-a',
