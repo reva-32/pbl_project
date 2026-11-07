@@ -8,8 +8,8 @@ const { retainBusinessMemory } = require('./hindsightService');
 
 function redactContactDetails(value) {
   return String(value || '')
-    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\\.[A-Z]{2,}/gi, '[email redacted]')
-    .replace(/\\b(?:\\+?\\d[\\d\\s().-]{7,}\\d)\\b/g, '[phone redacted]');
+    .replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email redacted]')
+    .replace(/\b(?:\+?\d[\d\s().-]{7,}\d)\b/g, '[phone redacted]');
 }
 
 function retainMessageMemory(retainer, userId, event, source) {
