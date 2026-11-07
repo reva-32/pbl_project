@@ -134,7 +134,7 @@ async function reflectOnBusinessMemory(userId, query) {
 // for synthesis across business history rather than ordinary factual lookups.
 function isStrategicBusinessQuery(query) {
   if (typeof query !== 'string' || query.trim().length < 12) return false;
-  return /\\b(trend|trends|pattern|patterns|recurr(?:ing|ently)|over time|histor(?:y|ical)|performance|analyse|analyze|analysis|insight|insights|recommend(?:ation|ations|ed)?|improv(?:e|ement|ements)|risk|risks|cash.?flow|profitabilit|vendor performance|supplier performance|customer behavio[u]?r|compare.*period|business health|what should i focus|strateg(?:y|ic))\\b/i.test(query);
+  return /\b(trend|trends|pattern|patterns|recurr(?:ing|ently)|over time|histor(?:y|ical)|performance|analyse|analyze|analysis|insight|insights|recommend(?:ation|ations|ed)?|improv(?:e|ement|ements)|risk|risks|cash.?flow|profitabilit|vendor performance|supplier performance|customer behavio[u]?r|compare.*period|business health|what should i focus|strateg(?:y|ic))\b/i.test(query);
 }
 
 module.exports = {
