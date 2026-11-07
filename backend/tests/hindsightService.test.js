@@ -64,6 +64,7 @@ test('retains content in the authenticated user bank with source context', async
   assert.equal(body.items[0].context, 'msme360:invoice_paid');
   assert.equal(body.items[0].document_id, '507f1f77bcf86cd799439099');
   assert.equal(body.items[0].timestamp, '2026-11-07T10:30:00.000Z');
+  assert.deepEqual(body.items[0].tags, ['tenant:507f1f77bcf86cd799439011']);
 });
 
 test('recalls only documented options and returns result list', async () => {
@@ -85,6 +86,7 @@ test('recalls only documented options and returns result list', async () => {
     query: 'supplier delivery history',
     types: ['world', 'experience'],
     prefer_observations: true,
+    tags: ['tenant:507f1f77bcf86cd799439011'],
   });
 });
 
