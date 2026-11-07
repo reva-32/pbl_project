@@ -91,7 +91,7 @@ async function recallBusinessMemories(userId, query, options = {}) {
     },
   });
 
-  return result.configured ? (result.data.results || []) : [];
+  return result.configured && Array.isArray(result.data?.results) ? result.data.results : [];
 }
 
 async function reflectOnBusinessMemory(userId, query) {
