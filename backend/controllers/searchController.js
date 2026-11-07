@@ -4,7 +4,7 @@ const { getEmbedding } = require('../services/ragService');
 const { getGroqClient } = require('../services/aiClassifier');
 const { createInvoicePDF } = require('../utils/invoiceGenerator');
 const { calculateProjection } = require('../utils/financialTools');
-const { retainBusinessMemory } = require('../services/hindsightService');
+const { retainBusinessMemory, recallBusinessMemories } = require('../services/hindsightService');
 
 exports.searchEvents = async (req, res) => {
     try {
@@ -110,10 +110,34 @@ exports.searchEvents = async (req, res) => {
             ? combined.map((doc) => `[${doc.type}]: ${JSON.stringify(doc.content)}`).join('\n')
             : 'EMPTY';
 
+        // Recall is tenant-scoped by the authenticated user ID. MongoDB RAG remains the primary source.
+        let hindsightContext = 'EMPTY';
+        try {
+            const recalledMemories = await recallBusinessMemories(req.userId, query, {
+                types: ['world', 'experience', 'observation'],
+                preferObservations: true,
+            });
+            hindsightContext = recalledMemories
+                .slice(0, 5)
+                .filter((memory) => memory && typeof memory.text === 'string' && memory.text.trim())
+                .map((memory) => {
+                    const type = typeof memory.type === 'string' ? memory.type : 'memory';
+                    const context = typeof memory.context === 'string' && memory.context.trim()
+                        ? ` (Context: ${memory.context.trim().slice(0, 120)})`
+                        : '';
+                    return `[${type}]${context}: ${memory.text.trim().slice(0, 800)}`;
+                })
+                .join('\n') || 'EMPTY';
+        } catch (hindsightError) {
+            // Hindsight is an optional augmentation; existing MongoDB RAG and Groq must keep working.
+            console.error('⚠️ Hindsight recall failed:', hindsightError.message);
+        }
+
         const systemPrompt = `
         You are the elite AI Business Consultant for ${companyName}, owned by ${ownerName}.
         The business type is ${businessType}.
         INTERNAL RECORDS: ${internalContext}
+        HINDSIGHT LONG-TERM BUSINESS MEMORIES: ${hindsightContext}
         
         INSTRUCTIONS:
         1. **TASK: GENERATE INVOICE**: ONLY if the user explicitly asks to CREATE, MAKE, or GENERATE a new invoice, output JSON with this shape (fill values from the user message; seller GST/address may be empty strings to use profile defaults):
