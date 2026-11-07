@@ -235,13 +235,18 @@ exports.searchEvents = async (req, res) => {
         // generations as facts, and fail closed for likely secrets/PII. The
         // operation is asynchronous so Hindsight outages cannot block chat.
         if (shouldRetainConversationMessage(query)) {
-            retainBusinessMemory(req.userId, query, {
-                source: 'chat_user_message',
-                documentId: `chat-${turnId}`,
-                timestamp: new Date().toISOString(),
-            }).catch((hindsightError) => {
-                console.error('⚠️ Hindsight conversational retention failed:', hindsightError.message);
-            });
+            // Give synchronous Retain a short head start so the next chat turn
+            // can usually recall this message, but never delay chat indefinitely.
+            await Promise.race([
+                retainBusinessMemory(req.userId, query, {
+                    source: 'chat_user_message',
+                    documentId: `chat-${turnId}`,
+                    timestamp: new Date().toISOString(),
+                }).catch((hindsightError) => {
+                    console.error('⚠️ Hindsight conversational retention failed:', hindsightError.message);
+                }),
+                new Promise((resolve) => setTimeout(resolve, 1800)),
+            ]);
         }
 
         // ── Action handler ────────────────────────────────────────────────────
