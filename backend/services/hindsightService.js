@@ -59,20 +59,6 @@ async function hindsightRequest(path, { method = 'GET', body } = {}) {
   }
 }
 
-async function ensureBusinessBank(userId, companyName) {
-  const bankId = getBankId(userId);
-  const result = await hindsightRequest(`/v1/default/banks/${encodeURIComponent(bankId)}`, {
-    method: 'PUT',
-    body: {
-      name: `${String(companyName || 'MSME Business').slice(0, 100)} Memory`,
-      mission: 'Maintain accurate, evidence-based long-term business memory. Prioritize business decisions, recurring issues, customer and vendor context, cash-flow patterns, and outcomes. Do not infer facts that were not provided.',
-      disposition: { skepticism: 4, literalism: 4, empathy: 3 },
-    },
-  });
-
-  return result.configured ? { bankId, bank: result.data } : null;
-}
-
 async function retainBusinessMemory(userId, content, metadata = {}) {
   const bankId = getBankId(userId);
   if (typeof content !== 'string' || !content.trim()) return { skipped: true };
@@ -97,7 +83,8 @@ async function recallBusinessMemories(userId, query, options = {}) {
     method: 'POST',
     body: {
       query: query.trim().slice(0, 2000),
-      ...(Number.isInteger(options.maxTokens) ? { max_tokens: options.maxTokens } : {}),
+      ...(Array.isArray(options.types) ? { types: options.types } : {}),
+      ...(typeof options.preferObservations === 'boolean' ? { prefer_observations: options.preferObservations } : {}),
     },
   });
 
@@ -118,7 +105,6 @@ async function reflectOnBusinessMemory(userId, query) {
 
 module.exports = {
   getBankId,
-  ensureBusinessBank,
   retainBusinessMemory,
   recallBusinessMemories,
   reflectOnBusinessMemory,
