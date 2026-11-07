@@ -86,7 +86,6 @@ test('recalls only documented options and returns result list', async () => {
     query: 'supplier delivery history',
     types: ['world', 'experience'],
     prefer_observations: true,
-    tags: ['tenant:507f1f77bcf86cd799439011'],
   });
 });
 
