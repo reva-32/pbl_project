@@ -9,7 +9,7 @@ const UserSchema = new mongoose.Schema({
   businessType:  { type: String, default: "" },
   city:          { type: String, default: "" },
   gstin:         { type: String, default: "" },
-  whatsappPhoneNumberId: { type: String, default: null, index: true },
+  whatsappPhoneNumberId: { type: String, default: null },
 
   // ── Google Sheets ──
   googleSheetId: { type: String, default: null },
@@ -46,5 +46,31 @@ const UserSchema = new mongoose.Schema({
   lastGmailHistoryId:   { type: String, default: null }, // Tracks last processed historyId
 
 }, { timestamps: true });
+
+// Keep real WhatsApp phone-number IDs unique while allowing multiple users
+// who have not connected WhatsApp (null values).
+UserSchema.index(
+  { whatsappPhoneNumberId: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      whatsappPhoneNumberId: { $type: "string" }
+    },
+    name: "uniq_whatsappPhoneNumberId_string"
+  }
+);
+
+// Gmail address is optional until the user connects Gmail. Only actual string
+// addresses participate in uniqueness; null values are intentionally excluded.
+UserSchema.index(
+  { googleEmail: 1 },
+  {
+    unique: true,
+    partialFilterExpression: {
+      googleEmail: { $type: "string" }
+    },
+    name: "uniq_googleEmail_string"
+  }
+);
 
 module.exports = mongoose.model('User', UserSchema);

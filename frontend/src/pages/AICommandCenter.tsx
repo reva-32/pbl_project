@@ -15,6 +15,7 @@ import {
   Download,
   Sparkles,
   Loader2,
+  Copy,
 } from "lucide-react";
 import { apiFormFetch, resolveInvoicePdfUrl } from "@/lib/api";
 import { motion, AnimatePresence } from "framer-motion";
@@ -67,14 +68,18 @@ function parseFollowUps(text: string): { body: string; followUps: string[] } {
 }
 
 function renderMarkdown(text: string) {
-  const parts = text.split(/(\*\*[^*]+\*\*)/g);
-  return parts.map((p, i) =>
-    p.startsWith("**") && p.endsWith("**") ? (
-      <strong key={i}>{p.slice(2, -2)}</strong>
-    ) : (
-      <span key={i}>{p}</span>
-    ),
-  );
+  const lines = text.split("\n");
+  return <div className="space-y-2 break-words">{lines.map((line, index) => {
+    const value = line.trim();
+    if (!value) return <div key={index} className="h-1" />;
+    const parts = value.split(/(\*\*[^*]+\*\*)/g).map((part, partIndex) =>
+      part.startsWith("**") && part.endsWith("**") ? <strong key={partIndex} className="font-semibold text-foreground">{part.slice(2, -2)}</strong> : <span key={partIndex}>{part}</span>
+    );
+    if (/^#{1,3}\s/.test(value)) return <h3 key={index} className="pt-2 text-base font-bold tracking-tight text-slate-900">{value.replace(/^#{1,3}\s/, "").split(/(\*\*[^*]+\*\*)/g).map((part, i) => part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>)}</h3>;
+    if (/^[-*•]\s/.test(value)) return <div key={index} className="flex gap-2 pl-1 text-sm leading-7 text-slate-700"><span className="mt-0.5 text-primary">•</span><span>{value.replace(/^[-*•]\s/, "").split(/(\*\*[^*]+\*\*)/g).map((part, i) => part.startsWith("**") && part.endsWith("**") ? <strong key={i}>{part.slice(2, -2)}</strong> : <span key={i}>{part}</span>)}</span></div>;
+    if (/^\d+[.)]\s/.test(value)) return <div key={index} className="text-sm leading-7 text-slate-700">{parts}</div>;
+    return <p key={index} className="text-sm leading-7 text-slate-700">{parts}</p>;
+  })}</div>;
 }
 
 const AICommandCenter = () => {
@@ -110,6 +115,15 @@ const AICommandCenter = () => {
   useEffect(() => {
     endRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isLoading]);
+
+  const copyResponse = async (message: Message) => {
+    try {
+      await navigator.clipboard.writeText(message.content);
+      toast.success("Response copied");
+    } catch {
+      toast.error("Could not copy this response.");
+    }
+  };
 
   const handleOCR = async () => {
     if (!attachedFile) return;
@@ -157,6 +171,18 @@ const AICommandCenter = () => {
 
     const form = new FormData();
     form.append("query", content);
+    // Send only a bounded recent window. The backend validates roles/content,
+    // and derives the tenant identity exclusively from the authenticated JWT.
+    const conversationHistory = messages
+      .filter((message) => message.role === "user" || message.role === "ai")
+      .filter((message) => message.type !== "ocr_result")
+      .slice(-10)
+      .map((message) => ({
+        role: message.role === "user" ? "user" : "assistant",
+        content: message.content,
+      }));
+    form.append("conversationHistory", JSON.stringify(conversationHistory));
+    form.append("turnId", crypto.randomUUID());
     if (attachedFile) form.append("signature", attachedFile);
 
     const { data, error } = await apiFormFetch<AISearchResponse>("/search", form);
@@ -318,8 +344,11 @@ const AICommandCenter = () => {
                     )}
 
                     {msg.role === "ai" && msg.type !== "invoice" && msg.type !== "projection" && msg.type !== "ocr_result" && (
-                      <GlassCard className="p-4 sm:p-5">
-                        <p className="text-sm text-foreground leading-relaxed">{renderMarkdown(msg.content)}</p>
+                      <GlassCard className="group p-4 sm:p-5">
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0 flex-1">{renderMarkdown(msg.content)}</div>
+                          <motion.button type="button" whileHover={{ scale: 1.08 }} whileTap={{ scale: 0.94 }} onClick={() => copyResponse(msg)} aria-label="Copy response" title="Copy response" className="shrink-0 rounded-lg p-2 text-slate-400 opacity-70 transition hover:bg-slate-100 hover:text-primary sm:opacity-0 sm:group-hover:opacity-100"><Copy className="h-4 w-4" /></motion.button>
+                        </div>
                         {msg.ocrText && (
                           <div className="mt-3 p-3 bg-slate-50/90 rounded-xl border border-slate-100">
                             <p className="text-xs font-semibold text-muted-foreground mb-1">
