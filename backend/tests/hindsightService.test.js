@@ -117,7 +117,7 @@ test('reflect requests documented evidence and normalizes the synthesized respon
     '507f1f77bcf86cd799439011',
     'What recurring cash-flow risks exist?',
   );
-  assert.match(requestUrl, /\\/reflect$/);
+  assert.match(requestUrl, /\/reflect$/);
   assert.deepEqual(requestBody, {
     query: 'What recurring cash-flow risks exist?',
     max_tokens: 700,
