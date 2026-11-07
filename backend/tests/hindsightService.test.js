@@ -100,18 +100,49 @@ test('returns an empty recall list when the API response has no results array', 
   assert.deepEqual(results, []);
 });
 
-test('reflect returns the Hindsight response', async () => {
+test('reflect requests documented evidence and normalizes the synthesized response', async () => {
   process.env.HINDSIGHT_API_KEY = 'test-key';
-  global.fetch = async (_url, options) => {
-    assert.equal(JSON.parse(options.body).query, 'What recurring cash-flow risks exist?');
-    return new Response(JSON.stringify({ text: 'Late customer payments recur.' }), { status: 200 });
+  let requestBody;
+  let requestUrl;
+  global.fetch = async (url, options) => {
+    requestUrl = url;
+    requestBody = JSON.parse(options.body);
+    return new Response(JSON.stringify({
+      text: 'Late customer payments recur.',
+      based_on: { memories: [{ text: 'Two invoices were paid late.', type: 'experience' }] },
+    }), { status: 200 });
   };
   const service = loadService();
   const result = await service.reflectOnBusinessMemory(
     '507f1f77bcf86cd799439011',
     'What recurring cash-flow risks exist?',
   );
+  assert.match(requestUrl, /\\/reflect$/);
+  assert.deepEqual(requestBody, {
+    query: 'What recurring cash-flow risks exist?',
+    max_tokens: 700,
+    include: { facts: {} },
+  });
   assert.equal(result.text, 'Late customer payments recur.');
+  assert.deepEqual(result.memories, [{ text: 'Two invoices were paid late.', type: 'experience' }]);
+});
+
+test('returns null for malformed or empty Reflect responses', async () => {
+  process.env.HINDSIGHT_API_KEY = 'test-key';
+  global.fetch = async () => new Response(JSON.stringify({ text: '' }), { status: 200 });
+  const service = loadService();
+  const result = await service.reflectOnBusinessMemory(
+    '507f1f77bcf86cd799439011',
+    'What recurring cash-flow risks exist?',
+  );
+  assert.equal(result, null);
+});
+
+test('identifies strategic questions without invoking Reflect for ordinary lookups', () => {
+  const service = loadService();
+  assert.equal(service.isStrategicBusinessQuery('What recurring cash-flow risks exist?'), true);
+  assert.equal(service.isStrategicBusinessQuery('Show invoice INV-102'), false);
+  assert.equal(service.isStrategicBusinessQuery('What are my sales trends over time?'), true);
 });
 
 test('surfaces API errors without exposing credentials', async () => {
